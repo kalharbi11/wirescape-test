@@ -10,7 +10,7 @@ One row per folder in `modules/`. Specs are in lab
 
 | Folder | ID | Kind | Spec | Task | Stage | Status |
 |---|---|---|---|---|---|---|
-| `function_envelope` | `essentials.function_envelope` | override | §4.1 Trigger mode, `hold`, `delay` | MOD-1 | 1 | planned |
+| `function_envelope` | `essentials.function_envelope` | override | §4.1 Trigger mode, `hold`, `delay` | MOD-1 (#5) | 1 | draft; T2 blocked: lab `port_behavior_tests` counts 17 modulatable parameters and needs each to act in Gate mode (issue to file) |
 | `adsr` | `essentials.adsr` | override | §4.1 `delay` | MOD-2 | 1 | planned |
 | `random` | `essentials.random` | new | §4.2 (starts from lab `sdk/examples/random_source`) | MOD-3 (#7) | 1 | draft |
 | `clock_divmult` | `essentials.clock_divmult` | new | §4.3 | MOD-4 | 1 | planned |
