@@ -12,7 +12,7 @@ One row per folder in `modules/`. Specs are in lab
 |---|---|---|---|---|---|---|
 | `function_envelope` | `essentials.function_envelope` | override | §4.1 Trigger mode, `hold`, `delay` | MOD-1 | 1 | planned |
 | `adsr` | `essentials.adsr` | override | §4.1 `delay` | MOD-2 | 1 | planned |
-| `random` | `essentials.random` | new | §4.2 (starts from lab `sdk/examples/random_source`) | MOD-3 | 1 | planned |
+| `random` | `essentials.random` | new | §4.2 (starts from lab `sdk/examples/random_source`) | MOD-3 (#7) | 1 | draft |
 | `clock_divmult` | `essentials.clock_divmult` | new | §4.3 | MOD-4 | 1 | planned |
 | `macro` | `essentials.macro` | new | §3.1 | MOD-5 | 1 | planned |
 | `rhythm_lanes` | `sequencing.rhythm_lanes` | new | §4.4 (original design) | MOD-6 | 2 | planned |
