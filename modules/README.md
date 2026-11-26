@@ -14,7 +14,7 @@ One row per folder in `modules/`. Specs are in lab
 | `adsr` | `essentials.adsr` | override | §4.1 `delay` | MOD-2 | 1 | planned |
 | `random` | `essentials.random` | new | §4.2 (starts from lab `sdk/examples/random_source`) | MOD-3 | 1 | planned |
 | `clock_divmult` | `essentials.clock_divmult` | new | §4.3 | MOD-4 | 1 | planned |
-| `macro` | `essentials.macro` | new | §3.1 | MOD-5 | 1 | planned |
+| `macro` | `essentials.macro` | new | §3.1 | MOD-5 (#8) | 1 | draft |
 | `rhythm_lanes` | `sequencing.rhythm_lanes` | new | §4.4 (original design) | MOD-6 | 2 | planned |
 | chord, cv_to_notes, groove, host_keyboard, midi_in, midi_to_cv, notes_to_cv, quantizer | (existing) | override | §4.6 batch A, flags only | MOD-7 | 2 | planned |
 | `lfo` | `essentials.lfo` | override | §4.5 shapes, division, clock and reset | MOD-8 | 2 | planned |

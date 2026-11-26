@@ -1,0 +1,30 @@
+{
+  "schema_version": 2,
+  "id": "essentials.macro",
+  "name": "Macros",
+  "abi_version": 2,
+  "library": "ws2_macro",
+  "description": "Eight macro knobs whose effective values appear on eight CV outputs; labels in the patch",
+  "parameters": {
+    "knob1": 0,
+    "knob2": 1,
+    "knob3": 2,
+    "knob4": 3,
+    "knob5": 4,
+    "knob6": 5,
+    "knob7": 6,
+    "knob8": 7
+  },
+  "inputs": {},
+  "outputs": {
+    "out1": "signal",
+    "out2": "signal",
+    "out3": "signal",
+    "out4": "signal",
+    "out5": "signal",
+    "out6": "signal",
+    "out7": "signal",
+    "out8": "signal"
+  },
+  "license": "GPL-3.0-only"
+}
