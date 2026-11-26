@@ -819,7 +819,13 @@ def cmd_t2(args) -> int:
     result["checks"]["lab_ctest"] = {"status": "pass" if ctest.returncode == 0 else "fail",
                                      "failed": failed, "summary": total.group(0) if total else tail(ctest.stdout, 3)}
     render = binary(session.build_dir, "wirescape_render", session.config)
-    matrix, code = [], 0 if ctest.returncode == 0 else 1
+    limits = engine_limits(session, render)
+    # The probe must itself render at the lab case's own settings, or nothing may be skipped.
+    probe_ok = "48000/128" not in limits
+    result["checks"]["engine_limits"] = {"status": "pass" if probe_ok else "fail", "refused": limits}
+    if not probe_ok:
+        limits = {}
+    matrix, code = [], 0 if ctest.returncode == 0 and probe_ok else 1
     for path in sorted((m.folder / "demos").glob("*.json")):
         case = json.loads(path.read_text(encoding="utf-8"))
         for rate in T2_RATES:
@@ -827,8 +833,12 @@ def cmd_t2(args) -> int:
                 row = {"case": path.name, "rate": rate, "block": block}
                 work = session.out / m.name / "t2" / f"{path.stem}-{rate}-{block}"
                 try:
+                    refused = limits.get(f"{rate}/{block}")
                     if case["seconds"] * rate * 8 > 20 * 1024 * 1024:
                         row.update(status="skip", detail="over the renderer's 20 MiB WAV limit")
+                    elif refused:
+                        row.update(status="skip", detail="outside the engine's limits: the lab's own "
+                                   f"{LIMIT_CASE} refuses this rate/block ({refused})")
                     else:
                         a = render_case(render, case, work / "a", rate, block)
                         b = render_case(render, case, work / "b", rate, block)
@@ -847,6 +857,23 @@ def cmd_t2(args) -> int:
     result["checks"]["callgrind"] = callgrind(session, m, render)
     result["checks"]["cortex_m7"] = cortex_m7(session, m)
     return finish(1 if code else 0)
+
+
+LIMIT_CASE = "tools/render/cases/adsr-notes.json"
+
+
+def engine_limits(session: Session, render: Path) -> dict:
+    """Rate/block pairs the pinned lab's own render case cannot prepare (the renderer's limits)."""
+    case = json.loads((session.lab.dir / LIMIT_CASE).read_text(encoding="utf-8"))
+    refused = {}
+    for rate in T2_RATES:
+        for block in T2_BLOCKS:
+            try:
+                render_case(render, case, session.out / "engine-limits" / f"{rate}-{block}", rate, block)
+            except StepFailed as error:
+                refused[f"{rate}/{block}"] = error.detail.splitlines()[-1][-160:]
+    shutil.rmtree(session.out / "engine-limits", ignore_errors=True)
+    return refused
 
 
 def wav_peak(path: Path) -> tuple[float, bool]:

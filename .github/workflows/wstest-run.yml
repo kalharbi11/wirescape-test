@@ -25,7 +25,6 @@ jobs:
         shell: bash
     env:
       PYTHONUNBUFFERED: '1'
-      CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_MAXSIZE: 500M
       CCACHE_COMPILERCHECK: content
       CCACHE_BASEDIR: ${{ github.workspace }}
@@ -49,13 +48,15 @@ jobs:
         run: |
           sudo apt-get update -q
           sudo apt-get install -y -q ccache
+          # Outside the checkout: the self-test requires git status to stay unchanged.
+          echo "CCACHE_DIR=$HOME/.cache/ccache" >> "$GITHUB_ENV"
           echo "Compiler: $(c++ --version | head -1)"
           echo "WSTEST_TOOLCHAIN=$(c++ --version | head -1 | tr -c 'A-Za-z0-9.' '-')" >> "$GITHUB_ENV"
       - name: Restore ccache (keyed by LAB_PIN and toolchain)
         if: runner.os == 'Linux'
         uses: actions/cache@v4
         with:
-          path: .ccache
+          path: ~/.cache/ccache
           key: ccache-${{ inputs.platform }}-${{ inputs.sanitize && 'sanitize' || 'release' }}-${{ env.WSTEST_TOOLCHAIN }}-${{ hashFiles('LAB_PIN') }}-${{ github.run_id }}
           restore-keys: |
             ccache-${{ inputs.platform }}-${{ inputs.sanitize && 'sanitize' || 'release' }}-${{ env.WSTEST_TOOLCHAIN }}-${{ hashFiles('LAB_PIN') }}-
