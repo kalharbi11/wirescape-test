@@ -1,0 +1,16 @@
+# Build and tooling
+build/
+build*/
+out/
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+node_modules/
+# Renders and captures (keep audio out of git; see README)
+*.wav
+*.flac
+# Local only, never commit
+.env
+*.local.*
+user_data/
