@@ -1,0 +1,25 @@
+{
+  "schema_version": 2,
+  "id": "essentials.random",
+  "name": "Random",
+  "abi_version": 2,
+  "library": "ws2_random",
+  "description": "Random values on the beat clock's division boundaries: stepped, S-curve smoothed and a step trigger",
+  "parameters": {
+    "division": 0,
+    "depth": 1,
+    "slew": 2,
+    "seed": 3,
+    "clock_ppq": 4
+  },
+  "inputs": {
+    "clock": "signal",
+    "reset": "signal"
+  },
+  "outputs": {
+    "stepped": "signal",
+    "smooth": "signal",
+    "step": "signal"
+  },
+  "license": "GPL-3.0-only"
+}
