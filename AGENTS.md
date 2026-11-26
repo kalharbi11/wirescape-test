@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # AGENTS.md — wirescape-test (provisional, 2026-11-26)
 
-Provisional until the Fable design run 2 replaces it. **Loose by design:** any agent may implement and
+Provisional until the Planner run 2 (`claude-planner`) replaces it. **Loose by design:** any agent may implement and
 merge after one simple review by another agent session, with T0/T1 green.
 
 ## Keep always

@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Module candidates (owner wants, 2026-11-26)
 
-The specs come from the Fable design run 2. Each folder uses the lab layout: `README.md` (IDs, ports,
+The specs come from the Planner run 2 (`claude-planner`). Each folder uses the lab layout: `README.md` (IDs, ports,
 parameters, ranges), `dsp.h`, `module.cpp`, `module.json`, `tests.cpp`, `DESIGN.md`, `CMakeLists.txt`.
 Start from lab `sdk/template/` or `sdk/examples/` (`random_source`, `step_sequencer`).
 

@@ -7,7 +7,7 @@ It builds against a pinned lab commit (`LAB_PIN`). Every module either proves th
 already support it, or names a limitation the lab must fix.
 
 **Status (2026-11-26): skeleton.** The layout, build tooling, test tiers and rules are decided by the
-Fable design run 2 (brief: lab `docs/context/fable/`). The intended flow:
+Planner run 2 (`claude-planner`) (brief: lab `docs/context/planner/`). The intended flow:
 
 | Tier | Where | What |
 |---|---|---|
