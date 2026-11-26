@@ -1,0 +1,115 @@
+{
+ "SPDX-License-Identifier": "GPL-3.0-only",
+ "id": "essentials.random",
+ "name": "Random",
+ "category": "Random / control",
+ "ports": [
+  {
+   "id": "clock",
+   "name": "Clock",
+   "direction": "input",
+   "kind": "signal",
+   "hint": "gate",
+   "poly": "first",
+   "stereo_pair": null
+  },
+  {
+   "id": "reset",
+   "name": "Reset",
+   "direction": "input",
+   "kind": "signal",
+   "hint": "trigger",
+   "poly": "first",
+   "stereo_pair": null
+  },
+  {
+   "id": "stepped",
+   "name": "Stepped",
+   "direction": "output",
+   "kind": "signal",
+   "hint": "cv_bi",
+   "poly": "poly",
+   "stereo_pair": null
+  },
+  {
+   "id": "smooth",
+   "name": "Smooth",
+   "direction": "output",
+   "kind": "signal",
+   "hint": "cv_bi",
+   "poly": "poly",
+   "stereo_pair": null
+  },
+  {
+   "id": "step",
+   "name": "Step",
+   "direction": "output",
+   "kind": "signal",
+   "hint": "trigger",
+   "poly": "poly",
+   "stereo_pair": null
+  }
+ ],
+ "parameters": [
+  {
+   "id": "division",
+   "name": "Division",
+   "minimum": 0,
+   "maximum": 17,
+   "default": 7,
+   "unit": "",
+   "taper": "linear",
+   "step": 1,
+   "decimals": 0,
+   "modulatable": true
+  },
+  {
+   "id": "depth",
+   "name": "Depth",
+   "minimum": 0,
+   "maximum": 1,
+   "default": 1,
+   "unit": "",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  },
+  {
+   "id": "slew",
+   "name": "Slew",
+   "minimum": 0,
+   "maximum": 1,
+   "default": 1,
+   "unit": "",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  },
+  {
+   "id": "seed",
+   "name": "Seed",
+   "minimum": 0,
+   "maximum": 65535,
+   "default": 0,
+   "unit": "",
+   "taper": "linear",
+   "step": 1,
+   "decimals": 0,
+   "modulatable": false
+  },
+  {
+   "id": "clock_ppq",
+   "name": "Clock PPQ",
+   "minimum": 1,
+   "maximum": 24,
+   "default": 1,
+   "unit": "",
+   "taper": "linear",
+   "step": 1,
+   "decimals": 0,
+   "modulatable": false
+  }
+ ]
+}
