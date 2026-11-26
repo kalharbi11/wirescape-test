@@ -1,0 +1,23 @@
+{
+  "SPDX-License-Identifier":"GPL-3.0-only","name":"MOD-5: an LFO modulates Macro knob 1 (base 0.3, amount 0.4); out1 drives a VCA, out2 is a constant knob","rate":48000,"block":128,"seconds":2,"seed":7,"peak_limit":1.2,
+  "patch":{"format":"wirescape.native.patch","version":2,"settings":{"seed":7},"name":"Demo: Macros with a modulation cable",
+    "modules":[
+      {"id":1,"module":"essentials.vco","version":2,"parameters":{"frequency":220}},
+      {"id":2,"module":"essentials.lfo","version":2,"parameters":{"rate":2}},
+      {"id":3,"module":"essentials.macro","version":1,"parameters":{"knob1":0.3,"knob2":0.5},
+       "data":{"labels":{"page":"Demo","rows":[{"name":"Swell"},{"name":"Level"},{"name":""},{"name":""},{"name":""},{"name":""},{"name":""},{"name":""}]}}},
+      {"id":4,"module":"essentials.vca","version":2,"parameters":{"gain":0.8}},
+      {"id":5,"module":"essentials.output","version":2,"parameters":{}}
+    ],
+    "connections":[
+      {"kind":"modulation","from":{"module":2,"port":"control"},"to":{"module":3,"port":"knob1"},"amount":0.4},
+      {"kind":"signal","from":{"module":1,"port":"audio"},"to":{"module":4,"port":"audio"}},
+      {"kind":"signal","from":{"module":3,"port":"out1"},"to":{"module":4,"port":"gain_cv"}},
+      {"kind":"signal","from":{"module":4,"port":"audio"},"to":{"module":5,"port":"audio"}}
+    ],
+    "outputs":[{"module":5,"port":"audio","bus_channel":0},{"module":5,"port":"audio","bus_channel":1}]
+  },
+  "events":[],
+  "windows":[{"kind":"active","start":1000,"end":95000}],
+  "frequencies":[]
+}

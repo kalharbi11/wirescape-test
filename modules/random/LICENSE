@@ -1,0 +1,5 @@
+SPDX-License-Identifier: GPL-3.0-only
+This folder is GPL-3.0-only (full text: LICENSES/GPL-3.0.txt in wirescape-test; LICENSE in the lab).
+beat_clock.h is dual-licensed "GPL-3.0-only OR MIT" (MIT text: LICENSES/MIT.txt): GPL satisfies the lab
+modules tree (wsmod C2), MIT lets the lab SDK take it unchanged (0024 §4.0 C6, SDK-1).
+dsp.h starts from the lab's sdk/examples/random_source (MIT, lab commit c083b26); see DESIGN.md.

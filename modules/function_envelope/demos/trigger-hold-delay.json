@@ -1,0 +1,22 @@
+{
+  "SPDX-License-Identifier":"GPL-3.0-only","name":"MOD-1: clock pulses through Function Envelope in Trigger mode with delay and hold","rate":48000,"block":128,"seconds":3,"seed":7,"peak_limit":1.2,
+  "patch":{"format":"wirescape.native.patch","version":2,"settings":{"seed":7},"name":"Demo: Function Envelope trigger, hold, delay",
+    "modules":[
+      {"id":1,"module":"essentials.vco","version":2,"parameters":{"frequency":220}},
+      {"id":2,"module":"essentials.clock","version":2,"parameters":{"bpm":60,"duty":0.05}},
+      {"id":3,"module":"essentials.function_envelope","version":2,"parameters":{"rise":0.05,"fall":0.3,"curve":0,"mode":1,"hold":0.2,"delay":0.1}},
+      {"id":4,"module":"essentials.vca","version":2,"parameters":{"gain":0.6}},
+      {"id":5,"module":"essentials.output","version":2,"parameters":{}}
+    ],
+    "connections":[
+      {"kind":"signal","from":{"module":2,"port":"clock"},"to":{"module":3,"port":"gate"}},
+      {"kind":"signal","from":{"module":1,"port":"audio"},"to":{"module":4,"port":"audio"}},
+      {"kind":"signal","from":{"module":3,"port":"envelope"},"to":{"module":4,"port":"gain_cv"}},
+      {"kind":"signal","from":{"module":4,"port":"audio"},"to":{"module":5,"port":"audio"}}
+    ],
+    "outputs":[{"module":5,"port":"audio","bus_channel":0},{"module":5,"port":"audio","bus_channel":1}]
+  },
+  "events":[],
+  "windows":[{"kind":"silent","start":0,"end":4600},{"kind":"active","start":7000,"end":20000},{"kind":"silent","start":32000,"end":52600},{"kind":"active","start":55000,"end":68000}],
+  "frequencies":[]
+}
