@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # AGENTS.md — wirescape-test (2026-11-26)
 
 Rules for every agent here. They replace the provisional rules and come from lab
