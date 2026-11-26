@@ -22,7 +22,7 @@ If a proxy blocks `codeload.github.com`, add `--git-deps`: it runs the pinned la
 ## What T0 does, per module
 | Step | Fails when |
 |---|---|
-| `register` | the folder has zero or two `WS_REGISTER_MODULE` lines, or the scratch tree differs from the pin in any other way |
+| `register` | the folder has zero or two `WS_REGISTER_MODULE` lines; `presentation.json`'s `id` does not match `dsp.h`, or the pin's generator refuses it; or the scratch tree differs from the pin in any other way |
 | `check` | lab `wsmod check`: any of C1–C4 is not `pass`, or C5 is not `pass` (`skip` only without `module.json`). C6 is advisory |
 | `build` | `wirescape_render`, `abi2_module_cpu_probe` or the module's test target do not build |
 | `tests` | CTest `abi2_<name>_tests` (or the lab's `<name>_*_tests` for an override) is missing or fails |
@@ -32,6 +32,20 @@ If a proxy blocks `codeload.github.com`, add `--git-deps`: it runs the pinned la
 
 T0 stops a module at its first failing step and names it. Results go to `build/wstest-out/<variant>/`
 (`t0.json`, `check.json`, `cpu_probe.json`, the demo WAVs); CI uploads that folder as an artifact.
+
+## T2 verdict
+T2 fails on a full-build failure, any failing lab CTest, a demo-matrix row that is not finite, over its
+peak or not byte-identical across two runs, or an engine-limit probe that cannot render 48 kHz/128.
+Callgrind and Cortex-M7 are advisory. **Lab #652 final ruling (0024 §9.1):**
+- **Scratch tree.** A module's `presentation.json` is inserted into the scratch
+  `catalogue-presentation.json`, and the pin's `tools/gen_ui_catalogue.py` runs there. So
+  `ui_catalogue_sync` and `ui_patch_conformance` gate.
+- **The S0 snapshot.** `abi2_sidecar_snapshot_tests` is recorded under
+  `lab_ctest.deferred_to_promotion` for a catalogue-changing module. The gating `s0_catalogue_others`
+  check compares the scratch `wirescape-engine --null-audio` hello catalogue with the parsed pinned
+  fixture.
+- **Blocks** are 16, 17, 48, 128 and 512 (§9.2). A row skips only when the demo itself refuses as the
+  lab's `adsr-notes` case does at that rate and block (lab #663).
 
 ## Where things live (all git-ignored)
 - `.lab/<sha>/`: the pinned lab, a shallow git checkout. Refused if it is at another commit or edited.
