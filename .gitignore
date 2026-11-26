@@ -1,5 +1,6 @@
 # Build and tooling
 build/
+.lab/
 build*/
 out/
 __pycache__/
