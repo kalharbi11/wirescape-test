@@ -20,7 +20,8 @@ One row per folder in `modules/`. Specs are in lab
 | `lfo` | `essentials.lfo` | override | §4.5 shapes, division, clock and reset | MOD-8 | 2 | planned |
 | delay, reverb, quad_vca, chaos_lite, spectral | (existing) | override | §4.6 batch B | MOD-9 | 3 | planned |
 
-The harness (MOD-0) comes first: `tools/**`, not a module.
+The harness (MOD-0) comes first: `tools/**`, not a module. Run `python tools/wstest.py t0 <folder>`
+(see [tools/README.md](../tools/README.md)); its self-test fixtures live in `tools/fixtures/`.
 
 ## Notes from the lab at `LAB_PIN`
 - **Already modulatable** (corrected in lab 0023 §3.1): clock, function_envelope, ladder, mixer, noise,

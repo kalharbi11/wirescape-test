@@ -1,0 +1,152 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# T2 (lab proposals/0024 §2.4): the owner's dispatch for one module. Full lab native build and every
+# lab CTest with the module registered on linux-x64, linux-arm64 and windows-x64; every demo at
+# 44.1/48/96 kHz x blocks 16, 17, 128, 512 (finite, peak bound, two runs byte-identical); callgrind
+# instruction counts (linux-x64, advisory) and a Cortex-M7 compile probe (advisory). Writes t2.json.
+# Never runs on its own (§2.8).
+name: T2
+
+on:
+  workflow_dispatch:
+    inputs:
+      module:
+        description: Module folder name under modules/
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: t2-${{ inputs.module }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  t2:
+    name: t2 ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: linux-x64, runner: ubuntu-latest }
+          - { platform: linux-arm64, runner: ubuntu-24.04-arm }
+          - { platform: windows-x64, runner: windows-2022 }
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONUNBUFFERED: '1'
+      MODULE: ${{ inputs.module }}
+    steps:
+      - name: Validate the module name
+        run: |
+          [[ "$MODULE" =~ ^[a-z][a-z0-9_]*$ ]] || { echo "invalid module name"; exit 1; }
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install the lab's pinned CMake and Ninja
+        run: python -m pip install cmake==4.2.3 ninja==1.13.0
+      - name: Use every runner core
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then cores="$NUMBER_OF_PROCESSORS"; else cores="$(nproc)"; fi
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$cores" >> "$GITHUB_ENV"
+      - name: Install valgrind and the Arm embedded toolchain (linux-x64, advisory probes)
+        if: matrix.platform == 'linux-x64'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q valgrind gcc-arm-none-eabi libstdc++-arm-none-eabi-newlib
+      - name: Fetch pinned PortAudio (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/checkout@v4
+        with:
+          repository: PortAudio/portaudio
+          ref: 147dd722548358763a8b649b3e4b41dfffbcfbb6
+          path: .tools/portaudio-src
+          persist-credentials: false
+      - name: Build pinned PortAudio (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake -S .tools/portaudio-src -B .tools/portaudio-build -G "Visual Studio 17 2022" -A x64 "-DCMAKE_POLICY_VERSION_MINIMUM=3.5" -DPA_BUILD_SHARED=ON -DPA_BUILD_STATIC=OFF -DPA_BUILD_TESTS=OFF -DPA_BUILD_EXAMPLES=OFF -DPA_USE_ASIO=OFF
+          if ($LASTEXITCODE) { throw 'PortAudio configure failed' }
+          cmake --build .tools/portaudio-build --config Release --parallel 2
+          if ($LASTEXITCODE) { throw 'PortAudio build failed' }
+          $dll = Get-ChildItem .tools/portaudio-build -Recurse -Filter '*portaudio*.dll' | Select-Object -First 1
+          if (!$dll) { throw 'PortAudio DLL unavailable' }
+          "WIRESCAPE_PORTAUDIO=$($dll.FullName)" >> $env:GITHUB_ENV
+          "WSTEST_GENERATOR=Visual Studio 17 2022" >> $env:GITHUB_ENV
+      - name: Fetch the lab at LAB_PIN
+        run: python tools/wstest.py fetch
+      - name: T2
+        run: python tools/wstest.py t2 "$MODULE" --out "build/t2/t2-${{ matrix.platform }}.json"
+      - name: Upload the platform result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: t2-${{ matrix.platform }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/t2/
+          if-no-files-found: warn
+          retention-days: 30
+
+  summary:
+    name: t2 summary
+    needs: t2
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      MODULE: ${{ inputs.module }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: t2-*-${{ github.run_id }}-${{ github.run_attempt }}
+          merge-multiple: true
+          path: platforms
+      - name: Write t2.json and the run summary
+        env:
+          COMMIT: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 - <<'PYCODE'
+          import json, os
+          from pathlib import Path
+          rows = {}
+          for path in sorted(Path("platforms").glob("t2-*.json")):
+              data = json.loads(path.read_text())
+              rows[data["platform"]] = data
+          wanted = 3
+          result = {"tier": "T2", "module": os.environ["MODULE"], "commit": os.environ["COMMIT"],
+                    "run": os.environ["RUN_URL"], "platforms": rows,
+                    "passed": len(rows) == wanted and all(r.get("passed") for r in rows.values())}
+          Path("t2.json").write_text(json.dumps(result, indent=2) + "\n")
+          lines = [f"### T2 `{result['module']}` at `{result['commit'][:7]}`: "
+                   f"{'PASS' if result['passed'] else 'FAIL'}", "",
+                   "| Platform | Passed | Full build | Lab CTest | Demo matrix | Callgrind | Cortex-M7 |",
+                   "|---|---|---|---|---|---|---|"]
+          for name, r in sorted(rows.items()):
+              c = r.get("checks", {})
+              get = lambda k: c.get(k, {}).get("status", "-")
+              lines.append(f"| {name} | {r.get('passed')} | {get('full_build')} | {get('lab_ctest')} "
+                           f"({c.get('lab_ctest', {}).get('summary', '')}) | {get('demo_matrix')} | "
+                           f"{get('callgrind')} | {get('cortex_m7')} |")
+          if len(rows) != wanted:
+              lines.append(f"\nOnly {len(rows)} of {wanted} platforms reported.")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as s:
+              s.write("\n".join(lines) + "\n")
+          print("\n".join(lines))
+          raise SystemExit(0 if result["passed"] else 1)
+          PYCODE
+      - name: Upload t2.json
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: t2-json-${{ github.run_id }}-${{ github.run_attempt }}
+          path: t2.json
+          if-no-files-found: warn
+          retention-days: 90
