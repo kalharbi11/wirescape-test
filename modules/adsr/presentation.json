@@ -1,0 +1,131 @@
+{
+ "SPDX-License-Identifier": "GPL-3.0-only",
+ "id": "essentials.adsr",
+ "name": "ADSR",
+ "category": "Envelope",
+ "ports": [
+  {
+   "id": "gate",
+   "name": "Gate",
+   "direction": "input",
+   "kind": "signal",
+   "hint": "gate",
+   "poly": "poly",
+   "stereo_pair": null
+  },
+  {
+   "id": "notes",
+   "name": "Notes",
+   "direction": "input",
+   "kind": "event",
+   "hint": "ev_notes",
+   "poly": "poly",
+   "stereo_pair": null
+  },
+  {
+   "id": "envelope",
+   "name": "Envelope",
+   "direction": "output",
+   "kind": "signal",
+   "hint": "cv_uni",
+   "poly": "poly",
+   "stereo_pair": null
+  }
+ ],
+ "parameters": [
+  {
+   "id": "attack",
+   "name": "Attack",
+   "minimum": 0.0001,
+   "maximum": 30,
+   "default": 0.01,
+   "unit": "s",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  },
+  {
+   "id": "decay",
+   "name": "Decay",
+   "minimum": 0.0001,
+   "maximum": 30,
+   "default": 0.1,
+   "unit": "s",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  },
+  {
+   "id": "sustain",
+   "name": "Sustain",
+   "minimum": 0,
+   "maximum": 1,
+   "default": 0.7,
+   "unit": "",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  },
+  {
+   "id": "release",
+   "name": "Release",
+   "minimum": 0.0001,
+   "maximum": 30,
+   "default": 0.2,
+   "unit": "s",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  },
+  {
+   "id": "mode",
+   "name": "Mode (Gate/Trigger)",
+   "minimum": 0,
+   "maximum": 1,
+   "default": 0,
+   "unit": "",
+   "taper": "linear",
+   "step": 1,
+   "decimals": 3,
+   "modulatable": false,
+   "choices": [
+    {
+     "value": 0,
+     "label": "Gate"
+    },
+    {
+     "value": 1,
+     "label": "Trigger"
+    }
+   ]
+  },
+  {
+   "id": "hold",
+   "name": "Hold",
+   "minimum": 0,
+   "maximum": 30,
+   "default": 0,
+   "unit": "s",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  },
+  {
+   "id": "delay",
+   "name": "Delay",
+   "minimum": 0,
+   "maximum": 30,
+   "default": 0,
+   "unit": "s",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  }
+ ]
+}
