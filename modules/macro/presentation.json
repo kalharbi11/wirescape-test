@@ -1,0 +1,178 @@
+{
+ "SPDX-License-Identifier": "GPL-3.0-only",
+ "id": "essentials.macro",
+ "name": "Macros",
+ "category": "Utility",
+ "ports": [
+  {
+   "id": "out1",
+   "name": "Out 1",
+   "direction": "output",
+   "kind": "signal",
+   "hint": "cv_uni",
+   "poly": "poly",
+   "stereo_pair": null
+  },
+  {
+   "id": "out2",
+   "name": "Out 2",
+   "direction": "output",
+   "kind": "signal",
+   "hint": "cv_uni",
+   "poly": "poly",
+   "stereo_pair": null
+  },
+  {
+   "id": "out3",
+   "name": "Out 3",
+   "direction": "output",
+   "kind": "signal",
+   "hint": "cv_uni",
+   "poly": "poly",
+   "stereo_pair": null
+  },
+  {
+   "id": "out4",
+   "name": "Out 4",
+   "direction": "output",
+   "kind": "signal",
+   "hint": "cv_uni",
+   "poly": "poly",
+   "stereo_pair": null
+  },
+  {
+   "id": "out5",
+   "name": "Out 5",
+   "direction": "output",
+   "kind": "signal",
+   "hint": "cv_uni",
+   "poly": "poly",
+   "stereo_pair": null
+  },
+  {
+   "id": "out6",
+   "name": "Out 6",
+   "direction": "output",
+   "kind": "signal",
+   "hint": "cv_uni",
+   "poly": "poly",
+   "stereo_pair": null
+  },
+  {
+   "id": "out7",
+   "name": "Out 7",
+   "direction": "output",
+   "kind": "signal",
+   "hint": "cv_uni",
+   "poly": "poly",
+   "stereo_pair": null
+  },
+  {
+   "id": "out8",
+   "name": "Out 8",
+   "direction": "output",
+   "kind": "signal",
+   "hint": "cv_uni",
+   "poly": "poly",
+   "stereo_pair": null
+  }
+ ],
+ "parameters": [
+  {
+   "id": "knob1",
+   "name": "Knob 1",
+   "minimum": 0,
+   "maximum": 1,
+   "default": 0,
+   "unit": "",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  },
+  {
+   "id": "knob2",
+   "name": "Knob 2",
+   "minimum": 0,
+   "maximum": 1,
+   "default": 0,
+   "unit": "",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  },
+  {
+   "id": "knob3",
+   "name": "Knob 3",
+   "minimum": 0,
+   "maximum": 1,
+   "default": 0,
+   "unit": "",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  },
+  {
+   "id": "knob4",
+   "name": "Knob 4",
+   "minimum": 0,
+   "maximum": 1,
+   "default": 0,
+   "unit": "",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  },
+  {
+   "id": "knob5",
+   "name": "Knob 5",
+   "minimum": 0,
+   "maximum": 1,
+   "default": 0,
+   "unit": "",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  },
+  {
+   "id": "knob6",
+   "name": "Knob 6",
+   "minimum": 0,
+   "maximum": 1,
+   "default": 0,
+   "unit": "",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  },
+  {
+   "id": "knob7",
+   "name": "Knob 7",
+   "minimum": 0,
+   "maximum": 1,
+   "default": 0,
+   "unit": "",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  },
+  {
+   "id": "knob8",
+   "name": "Knob 8",
+   "minimum": 0,
+   "maximum": 1,
+   "default": 0,
+   "unit": "",
+   "taper": "linear",
+   "step": 0,
+   "decimals": 3,
+   "modulatable": true
+  }
+ ]
+}

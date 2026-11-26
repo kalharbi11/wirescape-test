@@ -5,7 +5,7 @@
       {"id":1,"module":"essentials.vco","version":2,"parameters":{"frequency":220}},
       {"id":2,"module":"essentials.lfo","version":2,"parameters":{"rate":2}},
       {"id":3,"module":"essentials.macro","version":1,"parameters":{"knob1":0.3,"knob2":0.5},
-       "data":{"labels":{"page":"Demo","rows":[{"name":"Swell"},{"name":"Level"}]}}},
+       "data":{"labels":{"page":"Demo","rows":[{"name":"Swell"},{"name":"Level"},{"name":""},{"name":""},{"name":""},{"name":""},{"name":""},{"name":""}]}}},
       {"id":4,"module":"essentials.vca","version":2,"parameters":{"gain":0.8}},
       {"id":5,"module":"essentials.output","version":2,"parameters":{}}
     ],

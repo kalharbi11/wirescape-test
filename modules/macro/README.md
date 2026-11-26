@@ -20,9 +20,10 @@ No inputs. A CC or an LFO drives a knob through a modulation cable into its para
 ## Data slot `labels`
 `page` (text, ≤ 32 bytes) and `rows[8].name` (text, ≤ 32 bytes). Empty means "Macros *n*" and
 "Knob *k*". The DSP never reads it. Clients edit names live with `setData`, and the names live in the
-patch:
+patch. `rows` always has 8 entries (a fixed-length record):
 ```json
-"data": {"labels": {"page": "Drums", "rows": [{"name": "Cutoff"}, {"name": "Drive"}]}}
+"data": {"labels": {"page": "Drums", "rows": [{"name": "Cutoff"}, {"name": "Drive"}, {"name": ""}, {"name": ""},
+                             {"name": ""}, {"name": ""}, {"name": ""}, {"name": ""}]}}
 ```
 
 Demo: `demos/lfo-into-knob.json` (an LFO modulation cable into `knob1` at base 0.3, amount 0.4). Tests:
