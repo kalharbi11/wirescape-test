@@ -1,0 +1,13 @@
+{
+ "SPDX-License-Identifier": "GPL-3.0-only",
+ "id": "fixture.nan_gain",
+ "name": "Fixture NaN Gain",
+ "category": "Dynamics",
+ "ports": [
+  {"id": "audio", "name": "Audio", "direction": "input", "kind": "signal", "hint": "audio", "poly": "poly", "stereo_pair": null},
+  {"id": "audio", "name": "Audio", "direction": "output", "kind": "signal", "hint": "audio", "poly": "poly", "stereo_pair": null}
+ ],
+ "parameters": [
+  {"id": "gain", "name": "Gain", "minimum": 0, "maximum": 2, "default": 1, "unit": "", "taper": "linear", "step": 0, "decimals": 3, "modulatable": true}
+ ]
+}
