@@ -37,7 +37,7 @@ tools/fixtures/              harness self-tests
 3. **Mark the PR ready.** T1 adds linux-arm64, Windows and sanitizers.
 4. **One review** by another agent session. Any agent merges when the review names the head and T0 and
    T1 are green.
-5. **The owner runs T2.** After lab MB2, the lab's B4 lane promotes the folder (0024 §2.7).
+5. **The owner requests T2** (an agent dispatches it when asked). After lab MB2, the lab's B4 lane promotes the folder (0024 §2.7).
 
 ## Commands (planned in MOD-0; devices stay off)
 ```sh
@@ -53,18 +53,24 @@ Requirements: Python 3.10+, CMake, Ninja, a C++17 compiler (MSVC on Windows), an
 |---|---|---|
 | **T0** | every push and PR, Linux x64 | `wsmod check` (C1–C5); scratch build with the module registered; the module's `tests.cpp` with allocation watch; every demo rendered (finite, peak, active and silent windows), WAVs as CI artifacts; CPU probe (zero allocations and faults; timing is a diagnostic); overrides: `identical` |
 | **T1** | non-draft PRs and `main` | T0 on linux-arm64 (the Pi is the first target) and Windows x64, plus the build, tests and renders under ASan and UBSan |
-| **T2** | owner dispatch, one module | full lab build and every lab CTest on linux-x64, linux-arm64 and windows-x64 (three catalogue-sync CTests are deferred to promotion, see below); demos at 44.1/48/96 kHz × blocks 16, 17, 128 and 512, determinism; callgrind counts and the Cortex-M7 probe (advisory) |
+| **T2** | requested by the owner, one module | full lab build and every lab CTest on linux-x64, linux-arm64 and windows-x64 (only the S0 snapshot is deferred, see below); `s0_catalogue_others`; demos at 44.1/48/96 kHz × blocks 16, 17, 48, 128 and 512, determinism; callgrind counts and the Cortex-M7 probe (advisory) |
 | **Promote** | lab PR (after lab MB2) | byte copy of a named commit, with its T2 run; the lab's full CI and Architect review |
 
-**T2 and the catalogue-sync CTests (Architect ruling on lab #652, 2026-11-26).** `ui_catalogue_sync`,
-`ui_patch_conformance` and `abi2_sidecar_snapshot_tests` compare checked-in, generated lab files with the
-native catalogue. A module that changes the catalogue (every new module; an override whose `module.json`
-or `dsp.h` differs from the pin) makes them drift by construction, and only the promotion PR may
-regenerate those files (§2.3 refuses that scratch change; §2.7 step 2 does it). So T2 runs them, records
-their output under `deferred_to_promotion` in `t2.json`, and does not fail on them for such a module; the
-promotion PR's lab CI runs them for real. Any other failing lab CTest, or these three for a module that
-leaves the catalogue unchanged, fails T2. The list is closed (`T2_DEFERRED_TO_PROMOTION` in
-`tools/wstest.py`); a new name is an Architect ruling.
+**T2 and the catalogue files (lab 0024 §9.1–§9.2, final ruling on lab #652).**
+- **`presentation.json`.** Every new module, and every override that changes ports or parameters, ships
+  `modules/<name>/presentation.json`: one `catalogue-presentation.json` `modules[]` object with the
+  module's `id`, plus the `SPDX-License-Identifier` key.
+- **Registration** inserts that object into the scratch sidecar (appended for a new module, replacing
+  the same `id` for an override) and runs the pin's `tools/gen_ui_catalogue.py`, unmodified. Those two
+  files and the registration lines are the only allowed scratch diff.
+- **`ui_catalogue_sync` and `ui_patch_conformance` gate T2.**
+- **`abi2_sidecar_snapshot_tests` stays deferred** until the module's promotion PR, where the S0 byte
+  change gets its I7 review. The gating `s0_catalogue_others` check stands in for it: the scratch
+  `wirescape-engine --null-audio` catalogue must equal the pinned fixture apart from the module's own
+  entry (new) or its appended ports and parameters (override).
+- **Blocks.** A demo row is `skip` only when the demo refuses with the same reason as the lab's
+  `adsr-notes` case at that rate and block (lab #663, `feedback_block`). A demo may set
+  `settings.feedback_block` ≤ 16 to run at 16 and 17.
 
 ## How a module is registered
 The harness never commits to the lab. It recreates a scratch copy of the pinned lab on every build.

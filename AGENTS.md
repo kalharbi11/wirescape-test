@@ -52,9 +52,11 @@ issue). Open other lab files only for a specific fact.
   - [ ] SPDX and licences (9); no lab edits (2).
 - **Any agent merges (squash)** when the review names the head SHA and T0 and T1 are green on that head.
   Docs-only PRs need only the review.
-- **T2 is the owner's dispatch.** Ask for it in the PR when the module is done. An agent dispatches
-  `t2.yml` only when the owner asks it to in the session or the PR. The three catalogue-sync lab CTests
-  are deferred to promotion for catalogue-changing modules (lab #652 ruling, README "Test tiers").
+- **T2 is requested by the owner** (0024 §9.3). Ask for it in the PR when the module is done. An agent
+  dispatches `t2.yml` only when the owner asks in the session or the PR.
+- **`presentation.json`.** Every new module, and every override that changes ports or parameters,
+  ships `modules/<name>/presentation.json` (0024 §9.1; README "Test tiers"). At promotion it is the one
+  file not byte-copied: its object goes into the lab sidecar.
 - **Promotion to the lab** is lab work (B4), after lab MB2, as a byte copy of a named commit with its T2
   run (0024 §2.7). After it merges, the next pin bump deletes the folder here.
 

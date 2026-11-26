@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# T2 (lab proposals/0024 §2.4): the owner's dispatch for one module. Full lab native build and every
+# T2 (lab proposals/0024 §2.4, §9.1-§9.3): requested by the owner, for one module. Full lab native build and every
 # lab CTest with the module registered on linux-x64, linux-arm64 and windows-x64; every demo at
-# 44.1/48/96 kHz x blocks 16, 17, 128, 512 (finite, peak bound, two runs byte-identical); callgrind
+# 44.1/48/96 kHz x blocks 16, 17, 48, 128, 512 (finite, peak bound, two runs byte-identical); callgrind
 # instruction counts (linux-x64, advisory) and a Cortex-M7 compile probe (advisory). Writes t2.json.
-# Never runs on its own (§2.8). Lab #652 ruling: the three catalogue-sync CTests are deferred to
-# the promotion PR for a module that changes the catalogue (tools/wstest.py T2_DEFERRED_TO_PROMOTION).
+# Never runs on its own (§2.8). Lab #652 final ruling (§9.1): the two UI CTests gate; only
+# abi2_sidecar_snapshot_tests is deferred to promotion, replaced by the gating s0_catalogue_others.
 name: T2
 
 on:
@@ -128,8 +128,8 @@ jobs:
           Path("t2.json").write_text(json.dumps(result, indent=2) + "\n")
           lines = [f"### T2 `{result['module']}` at `{result['commit'][:7]}`: "
                    f"{'PASS' if result['passed'] else 'FAIL'}", "",
-                   "| Platform | Passed | Full build | Lab CTest | Demo matrix | Callgrind | Cortex-M7 |",
-                   "|---|---|---|---|---|---|---|"]
+                   "| Platform | Passed | Full build | Lab CTest | S0 others | Demo matrix | Callgrind | Cortex-M7 |",
+                   "|---|---|---|---|---|---|---|---|"]
           for name, r in sorted(rows.items()):
               c = r.get("checks", {})
               get = lambda k: c.get(k, {}).get("status", "-")
@@ -137,6 +137,7 @@ jobs:
               deferred = len(ct.get("deferred_to_promotion", []))
               lines.append(f"| {name} | {r.get('passed')} | {get('full_build')} | {get('lab_ctest')} "
                            f"({ct.get('summary', '')}{f'; {deferred} deferred to promotion' if deferred else ''}) | "
+                           f"{get('s0_catalogue_others')} | "
                            f"{get('demo_matrix')} | {get('callgrind')} | {get('cortex_m7')} |")
           if len(rows) != wanted:
               lines.append(f"\nOnly {len(rows)} of {wanted} platforms reported.")

@@ -182,11 +182,15 @@ class T2CtestRulingTests(FakeLab):
     """Lab #652 ruling: only the named catalogue-sync CTests defer, only for a catalogue change."""
     SYNC = ["ui_catalogue_sync", "ui_patch_conformance", "abi2_sidecar_snapshot_tests"]
 
-    def test_new_module_defers_only_the_named_sync_tests(self):
+    def test_new_module_defers_only_the_s0_snapshot(self):
+        # §9.1: the two UI CTests gate again; only the S0 snapshot defers.
         verdict = wstest.classify_ctest(8, self.SYNC, True)
+        self.assertEqual(verdict["status"], "fail")
+        self.assertEqual(verdict["failed"], ["ui_catalogue_sync", "ui_patch_conformance"])
+        verdict = wstest.classify_ctest(8, ["abi2_sidecar_snapshot_tests"], True)
         self.assertEqual(verdict["status"], "pass")
-        self.assertEqual(verdict["deferred_to_promotion"], sorted(self.SYNC))
-        verdict = wstest.classify_ctest(8, self.SYNC + ["abi2_engine_tests"], True)
+        self.assertEqual(verdict["deferred_to_promotion"], ["abi2_sidecar_snapshot_tests"])
+        verdict = wstest.classify_ctest(8, ["abi2_sidecar_snapshot_tests", "abi2_engine_tests"], True)
         self.assertEqual((verdict["status"], verdict["failed"]), ("fail", ["abi2_engine_tests"]))
 
     def test_no_catalogue_change_defers_nothing(self):
@@ -206,6 +210,127 @@ class T2CtestRulingTests(FakeLab):
         self.assertFalse(wstest.catalogue_changed(self.lab.dir, override))
         write(folder / "dsp.h", "// SPDX-License-Identifier: GPL-3.0-only\n#pragma once\n// edit\n")
         self.assertTrue(wstest.catalogue_changed(self.lab.dir, override))
+
+
+class PresentationTests(FakeLab):
+    """0024 §9.1: presentation.json goes into the scratch sidecar and the pin's generator runs."""
+    SIDECAR = {"SPDX-License-Identifier": "GPL-3.0-only", "note": "n",
+               "modules": [{"id": "essentials.existing", "name": "Existing", "ports": [], "parameters": []}]}
+    GENERATOR = ("# SPDX-License-Identifier: GPL-3.0-only\nimport json, pathlib\n"
+                 "root = pathlib.Path(__file__).resolve().parents[1]\n"
+                 "d = json.loads((root / 'apps/studio/public/catalogue-presentation.json').read_text())\n"
+                 "(root / 'apps/studio/public/wirescape_modules.json').write_text("
+                 "json.dumps([m['id'] for m in d['modules']]) + '\\n')\n")
+
+    def setUp(self):
+        super().setUp()
+        lab = self.upstream
+        write(lab / wstest.SIDECAR, json.dumps(self.SIDECAR, indent=1) + "\n")
+        write(lab / wstest.UI_CATALOGUE, '["essentials.existing"]\n')
+        write(lab / wstest.UI_GENERATOR, self.GENERATOR)
+        write(lab / "modules/existing/dsp.h", '// SPDX-License-Identifier: GPL-3.0-only\n#pragma once\n'
+              'static constexpr ws::Info info{"essentials.existing","Existing",1};\n')
+        git(lab, "add", ".")
+        git(lab, "commit", "-q", "-m", "sidecar")
+        self.sha = git(lab, "rev-parse", "HEAD").strip()
+        write(self.root / "LAB_PIN", f"repo=example/lab\ncommit={self.sha}\npinned=2026-11-26\n")
+        self.lab = wstest.Lab(self.root)
+        self.lab.fetch()
+
+    def thing(self, presentation: dict | None, ident: str = "test.thing"):
+        m = self.new_module()
+        write(m.folder / "dsp.h", f'// SPDX-License-Identifier: GPL-3.0-only\n#pragma once\n'
+              f'static constexpr ws::Info info{{"{ident}","Thing",1}};\n')
+        if presentation is not None:
+            write(m.folder / "presentation.json", json.dumps(presentation))
+        return m
+
+    def sidecar(self, scratch):
+        return json.loads((scratch / wstest.SIDECAR).read_text(encoding="utf-8"))
+
+    def test_new_module_is_appended_and_the_generator_runs(self):
+        m = self.thing({"SPDX-License-Identifier": "GPL-3.0-only", "id": "test.thing", "name": "Thing"})
+        scratch = self.root / "build/scratch"
+        wstest.prepare_tree(self.lab, scratch, [m])
+        mods = self.sidecar(scratch)["modules"]
+        self.assertEqual([x["id"] for x in mods], ["essentials.existing", "test.thing"])
+        self.assertNotIn("SPDX-License-Identifier", mods[1])
+        self.assertEqual(json.loads((scratch / wstest.UI_CATALOGUE).read_text()),
+                         ["essentials.existing", "test.thing"])
+
+    def test_without_presentation_nothing_changes(self):
+        scratch = self.root / "build/scratch"
+        wstest.prepare_tree(self.lab, scratch, [self.thing(None)])
+        self.assertEqual((scratch / wstest.UI_CATALOGUE).read_text(), '["essentials.existing"]\n')
+
+    def test_override_replaces_its_entry(self):
+        folder = self.root / "modules/existing"
+        import shutil
+        shutil.copytree(self.lab.dir / "modules/existing", folder)
+        write(folder / "presentation.json", json.dumps({"id": "essentials.existing", "name": "Renamed"}))
+        m = wstest.Module("existing", folder, "override", "existing::Existing")
+        scratch = self.root / "build/scratch"
+        wstest.prepare_tree(self.lab, scratch, [m])
+        mods = self.sidecar(scratch)["modules"]
+        self.assertEqual(len(mods), 1)
+        self.assertEqual(mods[0]["name"], "Renamed")
+
+    def test_wrong_id_or_duplicate_is_refused(self):
+        with self.assertRaises(wstest.Refused):
+            wstest.prepare_tree(self.lab, self.root / "build/s1", [self.thing({"id": "test.other"})])
+        with self.assertRaises(wstest.Refused):
+            wstest.prepare_tree(self.lab, self.root / "build/s2",
+                                [self.thing({"id": "essentials.existing"}, "essentials.existing")])
+
+    def test_generator_touching_another_file_is_refused(self):
+        write(self.upstream / wstest.UI_GENERATOR, self.GENERATOR + "(root / 'README.md').write_text('x')\n")
+        git(self.upstream, "commit", "-qam", "bad generator")
+        sha = git(self.upstream, "rev-parse", "HEAD").strip()
+        write(self.root / "LAB_PIN", f"repo=example/lab\ncommit={sha}\npinned=2026-11-26\n")
+        lab = wstest.Lab(self.root)
+        lab.fetch()
+        with self.assertRaises(wstest.Refused):
+            wstest.prepare_tree(lab, self.root / "build/s3", [self.thing({"id": "test.thing"})])
+
+
+class S0OthersTests(unittest.TestCase):
+    """0024 §9.1 rule 4: the gating s0_catalogue_others check."""
+    A = {"id": "a", "ports": [{"id": "in", "direction": "input"}, {"id": "out", "direction": "output"}],
+         "parameters": [{"id": "p"}], "name": "A"}
+    B = {"id": "b", "ports": [], "parameters": [], "name": "B"}
+    FIXTURE = {"modules": [A, B]}
+
+    def test_new_module_must_leave_the_fixture_exactly(self):
+        new = {"id": "n", "ports": [], "parameters": []}
+        self.assertTrue(wstest.compare_s0(self.FIXTURE, {"modules": [self.A, new, self.B]}, "n", "new")[0])
+        self.assertFalse(wstest.compare_s0(self.FIXTURE, {"modules": [self.B, self.A, new]}, "n", "new")[0])
+        changed = dict(self.B, name="B2")
+        self.assertFalse(wstest.compare_s0(self.FIXTURE, {"modules": [self.A, changed, new]}, "n", "new")[0])
+        self.assertFalse(wstest.compare_s0(self.FIXTURE, {"modules": [self.A, self.B]}, "n", "new")[0])
+
+    def test_override_may_only_append(self):
+        grown = dict(self.A, parameters=[{"id": "p"}, {"id": "q"}],
+                     ports=[{"id": "in", "direction": "input"}, {"id": "in2", "direction": "input"},
+                            {"id": "out", "direction": "output"}])
+        self.assertTrue(wstest.compare_s0(self.FIXTURE, {"modules": [grown, self.B]}, "a", "override")[0])
+        reordered = dict(self.A, parameters=[{"id": "q"}, {"id": "p"}])
+        self.assertFalse(wstest.compare_s0(self.FIXTURE, {"modules": [reordered, self.B]}, "a", "override")[0])
+        renamed = dict(self.A, name="A2")
+        self.assertFalse(wstest.compare_s0(self.FIXTURE, {"modules": [renamed, self.B]}, "a", "override")[0])
+        other = dict(self.B, name="B2")
+        self.assertFalse(wstest.compare_s0(self.FIXTURE, {"modules": [self.A, other]}, "a", "override")[0])
+
+
+class BlockSkipTests(unittest.TestCase):
+    """0024 §9.2: blocks 16, 17, 48, 128, 512; skip only when the demo refuses like the lab case."""
+    def test_blocks(self):
+        self.assertEqual(wstest.T2_BLOCKS, (16, 17, 48, 128, 512))
+
+    def test_skip_rule(self):
+        reason = "renderer exit 1: wirescape_render: patch load failed: Cannot prepare graph"
+        self.assertEqual(wstest.demo_refusal_status(reason, reason), "skip")
+        self.assertEqual(wstest.demo_refusal_status(reason, None), "fail")
+        self.assertEqual(wstest.demo_refusal_status("renderer exit 1: other", reason), "fail")
 
 
 if __name__ == "__main__":

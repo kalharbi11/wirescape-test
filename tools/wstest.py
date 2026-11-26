@@ -38,11 +38,18 @@ REGISTER_RE = re.compile(r"^[ \t]*WS_REGISTER_MODULE[ \t]*\(([^)]*)\)", re.M)
 CATALOG_INC = "engine/control/module_catalog.inc"
 CATALOG_H = "engine/control/module_catalog.h"
 ENGINE_CMAKE = "engine/CMakeLists.txt"
+# 0024 §9.1: a module's presentation.json goes into the scratch sidecar; the pin's generator then runs.
+SIDECAR = "apps/studio/public/catalogue-presentation.json"
+UI_CATALOGUE = "apps/studio/public/wirescape_modules.json"
+UI_GENERATOR = "tools/gen_ui_catalogue.py"
+S0_FIXTURE = "host/sidecar/testdata/s0_catalogue.ndjson"
+INFO_RE = re.compile(r'ws::Info\s+info\s*\{\s*"([^"]+)"')
 T0_TARGETS = ("wirescape_render", "abi2_module_cpu_probe")
 SANITIZE_FLAGS = "-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer"
 PROBE = {"instances": 2, "rate": 48000, "block": 128}
 T2_RATES = (44100, 48000, 96000)
-T2_BLOCKS = (16, 17, 128, 512)
+T2_BLOCKS = (16, 17, 48, 128, 512)  # 0024 §9.2: 48 is a non-power-of-two the renderer accepts
+FEEDBACK_BLOCK_ISSUE = "lab #663"  # a patch with no feedback_block cannot prepare at max_block < 32
 M7_FLAGS = ["-std=c++17", "-mcpu=cortex-m7", "-mthumb", "-mfpu=fpv5-d16", "-mfloat-abi=hard",
             "-fno-exceptions", "-fno-rtti", "-Os", "-ffunction-sections", "-fdata-sections",
             "-DWS_SIMD_SCALAR"]
@@ -255,6 +262,42 @@ def registration_edits(lab_dir: Path, modules: list[Module]) -> dict[str, str]:
     }
 
 
+def module_info_id(folder: Path) -> str | None:
+    found = INFO_RE.search((folder / "dsp.h").read_text(encoding="utf-8")) if (folder / "dsp.h").is_file() else None
+    return found.group(1) if found else None
+
+
+def presentation_edit(lab_dir: Path, modules: list[Module]) -> dict[str, str]:
+    """0024 §9.1 rule 2: each module's presentation.json object, inserted into the scratch sidecar
+    (appended for a new module, replacing the same id for an override). Empty without any."""
+    shipped = [m for m in modules if (m.folder / "presentation.json").is_file()]
+    if not shipped:
+        return {}
+    if not (lab_dir / SIDECAR).is_file():
+        raise Refused(f"the pin has no {SIDECAR} for presentation.json (0024 §9.1)")
+    sidecar = json.loads((lab_dir / SIDECAR).read_text(encoding="utf-8"))
+    entries = sidecar["modules"]
+    for m in shipped:
+        try:
+            entry = json.loads((m.folder / "presentation.json").read_text(encoding="utf-8"))
+        except ValueError as error:
+            raise Refused(f"{m.name}/presentation.json is not JSON: {error}")
+        if not isinstance(entry, dict):
+            raise Refused(f"{m.name}/presentation.json must hold one module object")
+        entry.pop("SPDX-License-Identifier", None)
+        ident = module_info_id(m.folder)
+        if entry.get("id") != ident:
+            raise Refused(f"{m.name}/presentation.json id {entry.get('id')!r} does not match dsp.h {ident!r}")
+        same = [i for i, e in enumerate(entries) if e.get("id") == ident]
+        if m.kind == "override" and same:
+            entries[same[0]] = entry
+        elif m.kind == "new" and not same:
+            entries.append(entry)
+        else:
+            raise Refused(f"{m.name}: {ident} is {'already' if same else 'not'} in the pin's sidecar")
+    return {SIDECAR: json.dumps(sidecar, indent=1, ensure_ascii=False) + "\n"}
+
+
 def expected_tree(lab: Lab, tracked: list[str], modules: list[Module]) -> dict[str, tuple[str, Path | bytes]]:
     """relative path -> ("lab"|"module"|"edit", source) for every file the scratch tree must hold."""
     replaced = {m.name for m in modules}
@@ -267,7 +310,7 @@ def expected_tree(lab: Lab, tracked: list[str], modules: list[Module]) -> dict[s
     for m in modules:
         for rel, path in folder_files(m.folder).items():
             tree[f"modules/{m.name}/{rel}"] = ("module", path)
-    for rel, text in registration_edits(lab.dir, modules).items():
+    for rel, text in {**registration_edits(lab.dir, modules), **presentation_edit(lab.dir, modules)}.items():
         tree[rel] = ("edit", text.encode("utf-8"))
     return tree
 
@@ -319,6 +362,16 @@ def prepare_tree(lab: Lab, dest: Path, modules: list[Module]) -> dict:
             shutil.copy2(source, target)
         if kind != "lab":
             stamp[rel] = sha256(target.read_bytes())
+    if SIDECAR in tree and tree[SIDECAR][0] == "edit" and (dest / UI_GENERATOR).is_file():
+        # §9.1 rule 2: the pin's own generator, unmodified, without --check. Its output is the only
+        # other allowed difference; verify_scratch refuses anything else it touches.
+        result = run([sys.executable, str(dest / UI_GENERATOR)], cwd=dest, timeout=300)
+        if result.returncode:
+            raise Refused(f"{UI_GENERATOR} refused the presentation.json entries:\n"
+                          + tail(result.stdout + result.stderr, 10))
+        generated = (dest / UI_CATALOGUE).read_bytes()
+        tree[UI_CATALOGUE] = ("edit", generated)
+        stamp[UI_CATALOGUE] = sha256(generated)
     # Ninja rebuilds by mtime. Files that differ from the pin (now or in the last run) get a fresh
     # mtime when their content changed since the last run, and keep the recorded one otherwise.
     now = time.time_ns()
@@ -821,6 +874,7 @@ def cmd_t2(args) -> int:
     lab_ctest["summary"] = total.group(0) if total else tail(ctest.stdout, 3)
     lab_ctest["catalogue_changed"] = changed
     result["checks"]["lab_ctest"] = lab_ctest
+    result["checks"]["s0_catalogue_others"] = s0_catalogue_others(session, m)
     render = binary(session.build_dir, "wirescape_render", session.config)
     limits = engine_limits(session, render)
     # The probe must itself render at the lab case's own settings, or nothing may be skipped.
@@ -828,7 +882,8 @@ def cmd_t2(args) -> int:
     result["checks"]["engine_limits"] = {"status": "pass" if probe_ok else "fail", "refused": limits}
     if not probe_ok:
         limits = {}
-    matrix, code = [], 0 if lab_ctest["status"] == "pass" and probe_ok else 1
+    matrix, code = [], 0 if (lab_ctest["status"] == "pass" and probe_ok and
+                             result["checks"]["s0_catalogue_others"]["status"] == "pass") else 1
     for path in sorted((m.folder / "demos").glob("*.json")):
         case = json.loads(path.read_text(encoding="utf-8"))
         for rate in T2_RATES:
@@ -836,12 +891,8 @@ def cmd_t2(args) -> int:
                 row = {"case": path.name, "rate": rate, "block": block}
                 work = session.out / m.name / "t2" / f"{path.stem}-{rate}-{block}"
                 try:
-                    refused = limits.get(f"{rate}/{block}")
                     if case["seconds"] * rate * 8 > 20 * 1024 * 1024:
                         row.update(status="skip", detail="over the renderer's 20 MiB WAV limit")
-                    elif refused:
-                        row.update(status="skip", detail="outside the engine's limits: the lab's own "
-                                   f"{LIMIT_CASE} refuses this rate/block ({refused})")
                     else:
                         a = render_case(render, case, work / "a", rate, block)
                         b = render_case(render, case, work / "b", rate, block)
@@ -852,7 +903,13 @@ def cmd_t2(args) -> int:
                         row["status"] = "pass" if good else "fail"
                     shutil.rmtree(work / "b", ignore_errors=True)
                 except StepFailed as error:
-                    row.update(status="fail", detail=error.detail)
+                    # §9.2: skip only when the lab case refuses this pair with the same reason.
+                    reason = refusal_reason(error.detail)
+                    refused = limits.get(f"{rate}/{block}")
+                    status = demo_refusal_status(reason, refused)
+                    row.update(status=status, detail=reason if status == "fail" else
+                               f"the demo and the lab's {LIMIT_CASE} both refuse ({reason}); "
+                               f"{FEEDBACK_BLOCK_ISSUE}, ends at the pin bump with its fix")
                 code |= row["status"] == "fail"
                 matrix.append(row)
     result["checks"]["demo_matrix"] = {"status": "fail" if any(r["status"] == "fail" for r in matrix)
@@ -862,15 +919,13 @@ def cmd_t2(args) -> int:
     return finish(1 if code else 0)
 
 
-# Architect ruling on lab #652 (claude-architect, 2026-11-26). These lab CTests compare checked-in,
-# generated catalogue files (apps/studio/public/wirescape_modules.json, host/sidecar/testdata) with
-# the native catalogue. Before lab MB2, a module that changes the catalogue (every new module, and an
-# override whose descriptor or manifest differs from the pin) makes them drift by construction, and
-# only the promotion PR regenerates those files (0024 §2.3 refusals, §2.7 step 2). T2 still runs them
-# and records their output; for such a module they are "deferred" to the promotion PR's lab CI and do
-# not fail T2. For any other module, and for every other lab CTest, a failure fails T2. The list is
-# closed: adding a name is an Architect ruling.
-T2_DEFERRED_TO_PROMOTION = ("ui_catalogue_sync", "ui_patch_conformance", "abi2_sidecar_snapshot_tests")
+# Lab #652, final ruling (0024 §9.1, claude-planner; supersedes the interim deferral of the two UI
+# CTests). ui_catalogue_sync and ui_patch_conformance gate T2: registration inserts the module's
+# presentation.json and runs the pin's generator. host/sidecar/testdata/s0_catalogue.ndjson has no
+# generator by design (I7 wire contract), so abi2_sidecar_snapshot_tests stays deferred by name until
+# the module's promotion PR, for a module that changes the catalogue; the gating s0_catalogue_others
+# check (compare_s0) stands in for it. The list is closed: adding a name is an Architect ruling.
+T2_DEFERRED_TO_PROMOTION = ("abi2_sidecar_snapshot_tests",)
 
 
 def catalogue_changed(lab_dir: Path, m: Module) -> bool:
@@ -899,6 +954,83 @@ def classify_ctest(returncode: int, failed: list[str], catalogue_change: bool) -
             **({"detail": "ctest failed without naming a test"} if unexplained else {})}
 
 
+def compare_s0(fixture: dict, actual: dict, module_id: str, kind: str) -> tuple[bool, str]:
+    """0024 §9.1 rule 4. new: removing the module's entry leaves the fixture exactly, in order.
+    override: every other entry is unchanged; the module's own entry differs only by appended ports
+    (per direction) or parameters."""
+    top = lambda c: {k: v for k, v in c.items() if k != "modules"}
+    if top(fixture) != top(actual):
+        return False, "catalogue fields other than modules differ"
+    fm, am = fixture.get("modules", []), actual.get("modules", [])
+    others = lambda ms: [e for e in ms if e.get("id") != module_id]
+    if others(fm) != others(am):
+        return False, "another module's entry or the order changed"
+    mine = [e for e in am if e.get("id") == module_id]
+    if kind == "new":
+        if len(mine) != 1 or any(e.get("id") == module_id for e in fm):
+            return False, f"expected exactly one new entry for {module_id}"
+        return True, f"fixture unchanged apart from the new {module_id} entry"
+    old = [e for e in fm if e.get("id") == module_id]
+    if len(mine) != 1 or len(old) != 1:
+        return False, f"expected one {module_id} entry in both"
+    a, f = mine[0], old[0]
+    if {k: v for k, v in a.items() if k not in ("ports", "parameters")} != \
+            {k: v for k, v in f.items() if k not in ("ports", "parameters")}:
+        return False, f"{module_id}: fields other than ports and parameters changed"
+    fp, ap = f.get("parameters", []), a.get("parameters", [])
+    if ap[:len(fp)] != fp:
+        return False, f"{module_id}: parameters are not the fixture's plus appended ones"
+    for direction in ("input", "output"):
+        fo = [x for x in f.get("ports", []) if x.get("direction") == direction]
+        ao = [x for x in a.get("ports", []) if x.get("direction") == direction]
+        if ao[:len(fo)] != fo:
+            return False, f"{module_id}: {direction} ports are not the fixture's plus appended ones"
+    return True, f"{module_id}: only appended ports or parameters"
+
+
+def s0_catalogue_others(session: "Session", m: Module) -> dict:
+    """Gating check: the scratch build's hello catalogue (wirescape-engine --null-audio, devices off)
+    against the parsed pinned fixture."""
+    try:
+        engine = binary(session.build_dir, "wirescape-engine", session.config)
+    except StepFailed as error:
+        return {"status": "fail", "detail": error.detail}
+    absent = session.build_dir / "s0-settings-not-present.json"
+    if absent.exists():
+        absent.unlink()
+    proc = subprocess.Popen([str(engine), "--null-audio", "--rate", "48000", "--block", "256",
+                             "--settings", str(absent)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True)
+    try:
+        out, err = proc.communicate(input="", timeout=60)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        out, err = proc.communicate()
+    try:
+        hello = json.loads(out.splitlines()[0])
+        actual = hello["catalogue"]
+        fixture = json.loads((session.lab.dir / S0_FIXTURE).read_text(encoding="utf-8").splitlines()[0])
+    except (ValueError, IndexError, KeyError, TypeError) as error:
+        return {"status": "fail", "detail": f"no hello catalogue ({error}): {tail(out + err, 5)}"}
+    if not m.module_id:
+        return {"status": "fail", "detail": "module id unknown"}
+    if not catalogue_changed(session.lab.dir, m):
+        ok, detail = (actual == fixture), "catalogue unchanged" if actual == fixture else "catalogue changed"
+    else:
+        ok, detail = compare_s0(fixture, actual, m.module_id, m.kind)
+    return {"status": "pass" if ok else "fail", "detail": detail}
+
+
+def demo_refusal_status(demo_reason: str, lab_reason: str | None) -> str:
+    """0024 §9.2 rule 2: a demo row that refuses is skip only when the lab case refuses the same
+    rate/block with the same reason; anything else fails."""
+    return "skip" if lab_reason is not None and demo_reason == lab_reason else "fail"
+
+
+def refusal_reason(detail: str) -> str:
+    return detail.splitlines()[-1][-160:] if detail else ""
+
+
 LIMIT_CASE = "tools/render/cases/adsr-notes.json"
 
 
@@ -911,7 +1043,7 @@ def engine_limits(session: Session, render: Path) -> dict:
             try:
                 render_case(render, case, session.out / "engine-limits" / f"{rate}-{block}", rate, block)
             except StepFailed as error:
-                refused[f"{rate}/{block}"] = error.detail.splitlines()[-1][-160:]
+                refused[f"{rate}/{block}"] = refusal_reason(error.detail)
     shutil.rmtree(session.out / "engine-limits", ignore_errors=True)
     return refused
 
