@@ -38,7 +38,8 @@ inline int64_t division_index(double beat, double length) noexcept {
 //   free-running at transport.bpm (120 without a transport) from its last position while stopped.
 //   While playing, beat = transport beat - origin; the origin is the transport beat at the last reset
 //   (0 until the first reset).
-// - A rising `reset` sets the beat origin to now; a clock edge in the same sample is that origin.
+// - A rising `reset` sets the beat origin to now: the beat is 0 at that sample. A clock edge in the
+//   same sample is that origin; between edges the next edge lands at (1 - fraction) x 1/ppq.
 class BeatClock {
 public:
     // Just below one edge interval, so interpolation never touches the next edge's beat.
@@ -78,6 +79,8 @@ public:
             double fraction = 0;
             if (held_) fraction = held_fraction_;
             else if (period_) fraction = std::min(static_cast<double>(since_) / static_cast<double>(period_), kMaxFraction);
+            // A reset between edges is beat 0 now; the next edge lands at (1 - fraction) x per_edge.
+            if (reset_edge && !edge) base_ = -fraction * per_edge;
             held_fraction_ = fraction;
             beat_ = base_ + fraction * per_edge;
             samples_per_beat_ = period_ ? static_cast<double>(period_) / per_edge : samples_per_beat_;

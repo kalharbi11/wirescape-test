@@ -27,8 +27,18 @@ repository).
   - The origin is the transport's beat at the last `reset`, and 0 until then.
 - **Reset.** The beat is 0 at the reset sample, and a clock edge in the same sample is that origin.
   Switching between cable and transport keeps the beat continuous.
+  - **Between edges (MOD-3a ruling):** a reset in clock mode with no edge in the same sample sets
+    `base = −fraction × per_edge`, where `fraction` is the interpolated (or held) fraction of the
+    current edge interval. The beat is exactly 0 at the reset, and the next edge lands at
+    `(1 − fraction) × per_edge`, so a reset just before an edge does not give a double step.
+  - **Unchanged:** a reset in the same sample as an edge, a reset before the second edge (fraction 0)
+    and transport mode.
 - **Boundaries.** `floor(beat / length + 1e-9)`, so exact multiples of 1/3 and 1/12 land on their
   boundary despite rounding. The tests cover 600 multiples of each.
+- **A division change alone draws nothing (MOD-3a).** When only the division length changed, the
+  module recomputes the period index of the beat for the new length and keeps its value. A boundary
+  crossed by the beat in the same sample still draws one. `last_length` is not saved: after a load it
+  is unknown and the index is recomputed, which leaves it unchanged for the same length.
 - **Step length** for the glide is `length × samples_per_beat`: the measured period × `clock_ppq` in
   clock mode, or 60·rate/BPM. It is capped at 30 s.
 
@@ -41,7 +51,7 @@ repository).
 
 ## Realtime and portability
 No allocation, locks, I/O, exceptions or logging in process or reset; no heap; fixed state (one voice).
-**`double` state:** the beat clock's `base`, `beat`, `origin`, `held_fraction` and `samples_per_beat`.
+**`double` state:** the beat clock's `base`, `beat`, `origin`, `held_fraction` and `samples_per_beat`, and the module's `last_length`.
 Beats must stay exact over long runs: a float beat drifts after about 2²⁴ samples. Integer counters
 are `uint64_t`.
 
