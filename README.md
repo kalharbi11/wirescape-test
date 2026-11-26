@@ -53,8 +53,18 @@ Requirements: Python 3.10+, CMake, Ninja, a C++17 compiler (MSVC on Windows), an
 |---|---|---|
 | **T0** | every push and PR, Linux x64 | `wsmod check` (C1–C5); scratch build with the module registered; the module's `tests.cpp` with allocation watch; every demo rendered (finite, peak, active and silent windows), WAVs as CI artifacts; CPU probe (zero allocations and faults; timing is a diagnostic); overrides: `identical` |
 | **T1** | non-draft PRs and `main` | T0 on linux-arm64 (the Pi is the first target) and Windows x64, plus the build, tests and renders under ASan and UBSan |
-| **T2** | owner dispatch, one module | full lab build and every lab CTest on linux-x64, linux-arm64 and windows-x64; demos at 44.1/48/96 kHz × blocks 16, 17, 128 and 512, determinism; callgrind counts and the Cortex-M7 probe (advisory) |
+| **T2** | owner dispatch, one module | full lab build and every lab CTest on linux-x64, linux-arm64 and windows-x64 (three catalogue-sync CTests are deferred to promotion, see below); demos at 44.1/48/96 kHz × blocks 16, 17, 128 and 512, determinism; callgrind counts and the Cortex-M7 probe (advisory) |
 | **Promote** | lab PR (after lab MB2) | byte copy of a named commit, with its T2 run; the lab's full CI and Architect review |
+
+**T2 and the catalogue-sync CTests (Architect ruling on lab #652, 2026-11-26).** `ui_catalogue_sync`,
+`ui_patch_conformance` and `abi2_sidecar_snapshot_tests` compare checked-in, generated lab files with the
+native catalogue. A module that changes the catalogue (every new module; an override whose `module.json`
+or `dsp.h` differs from the pin) makes them drift by construction, and only the promotion PR may
+regenerate those files (§2.3 refuses that scratch change; §2.7 step 2 does it). So T2 runs them, records
+their output under `deferred_to_promotion` in `t2.json`, and does not fail on them for such a module; the
+promotion PR's lab CI runs them for real. Any other failing lab CTest, or these three for a module that
+leaves the catalogue unchanged, fails T2. The list is closed (`T2_DEFERRED_TO_PROMOTION` in
+`tools/wstest.py`); a new name is an Architect ruling.
 
 ## How a module is registered
 The harness never commits to the lab. It recreates a scratch copy of the pinned lab on every build.
@@ -68,4 +78,4 @@ The harness never commits to the lab. It recreates a scratch copy of the pinned 
 when a lab fix a module needs has merged, when MB2 merges, and otherwise weekly while modules are in
 progress.
 
-Signed: claude-planner, 2026-11-26
+Signed: claude-planner, 2026-11-26 · T2 ruling: claude-architect, 2026-11-26

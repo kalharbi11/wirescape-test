@@ -816,8 +816,11 @@ def cmd_t2(args) -> int:
                  "--output-on-failure", "--timeout", "300"], timeout=7200)
     failed = re.findall(r"\d+ - (\S+) \(", ctest.stdout)
     total = re.search(r"tests passed, (\d+) tests failed out of (\d+)", ctest.stdout)
-    result["checks"]["lab_ctest"] = {"status": "pass" if ctest.returncode == 0 else "fail",
-                                     "failed": failed, "summary": total.group(0) if total else tail(ctest.stdout, 3)}
+    changed = catalogue_changed(session.lab.dir, m)
+    lab_ctest = classify_ctest(ctest.returncode, failed, changed)
+    lab_ctest["summary"] = total.group(0) if total else tail(ctest.stdout, 3)
+    lab_ctest["catalogue_changed"] = changed
+    result["checks"]["lab_ctest"] = lab_ctest
     render = binary(session.build_dir, "wirescape_render", session.config)
     limits = engine_limits(session, render)
     # The probe must itself render at the lab case's own settings, or nothing may be skipped.
@@ -825,7 +828,7 @@ def cmd_t2(args) -> int:
     result["checks"]["engine_limits"] = {"status": "pass" if probe_ok else "fail", "refused": limits}
     if not probe_ok:
         limits = {}
-    matrix, code = [], 0 if ctest.returncode == 0 and probe_ok else 1
+    matrix, code = [], 0 if lab_ctest["status"] == "pass" and probe_ok else 1
     for path in sorted((m.folder / "demos").glob("*.json")):
         case = json.loads(path.read_text(encoding="utf-8"))
         for rate in T2_RATES:
@@ -857,6 +860,43 @@ def cmd_t2(args) -> int:
     result["checks"]["callgrind"] = callgrind(session, m, render)
     result["checks"]["cortex_m7"] = cortex_m7(session, m)
     return finish(1 if code else 0)
+
+
+# Architect ruling on lab #652 (claude-architect, 2026-11-26). These lab CTests compare checked-in,
+# generated catalogue files (apps/studio/public/wirescape_modules.json, host/sidecar/testdata) with
+# the native catalogue. Before lab MB2, a module that changes the catalogue (every new module, and an
+# override whose descriptor or manifest differs from the pin) makes them drift by construction, and
+# only the promotion PR regenerates those files (0024 §2.3 refusals, §2.7 step 2). T2 still runs them
+# and records their output; for such a module they are "deferred" to the promotion PR's lab CI and do
+# not fail T2. For any other module, and for every other lab CTest, a failure fails T2. The list is
+# closed: adding a name is an Architect ruling.
+T2_DEFERRED_TO_PROMOTION = ("ui_catalogue_sync", "ui_patch_conformance", "abi2_sidecar_snapshot_tests")
+
+
+def catalogue_changed(lab_dir: Path, m: Module) -> bool:
+    """True when registering the module changes the catalogue: a new module, or an override whose
+    module.json or dsp.h (the descriptor: IDs, ranges, flags) differs from the pinned lab folder."""
+    if m.kind != "override":
+        return True
+    base = lab_dir / "modules" / m.name
+    for name in ("module.json", "dsp.h"):
+        ours, theirs = m.folder / name, base / name
+        if ours.is_file() != theirs.is_file():
+            return True
+        if ours.is_file() and ours.read_bytes() != theirs.read_bytes():
+            return True
+    return False
+
+
+def classify_ctest(returncode: int, failed: list[str], catalogue_change: bool) -> dict:
+    """lab_ctest verdict under the #652 ruling: only the named sync tests may be deferred, and only
+    when the module changes the catalogue. A non-zero exit with no parsed failure stays a failure."""
+    deferred = sorted(n for n in failed if catalogue_change and n in T2_DEFERRED_TO_PROMOTION)
+    hard = sorted(n for n in failed if n not in deferred)
+    unexplained = returncode != 0 and not failed
+    status = "fail" if hard or unexplained else "pass"
+    return {"status": status, "failed": hard, "deferred_to_promotion": deferred,
+            **({"detail": "ctest failed without naming a test"} if unexplained else {})}
 
 
 LIMIT_CASE = "tools/render/cases/adsr-notes.json"

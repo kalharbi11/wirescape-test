@@ -178,5 +178,35 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(data["default"], {"gain": None, "nan_gain": "demos", "alloc_gain": "cpu_probe"})
 
 
+class T2CtestRulingTests(FakeLab):
+    """Lab #652 ruling: only the named catalogue-sync CTests defer, only for a catalogue change."""
+    SYNC = ["ui_catalogue_sync", "ui_patch_conformance", "abi2_sidecar_snapshot_tests"]
+
+    def test_new_module_defers_only_the_named_sync_tests(self):
+        verdict = wstest.classify_ctest(8, self.SYNC, True)
+        self.assertEqual(verdict["status"], "pass")
+        self.assertEqual(verdict["deferred_to_promotion"], sorted(self.SYNC))
+        verdict = wstest.classify_ctest(8, self.SYNC + ["abi2_engine_tests"], True)
+        self.assertEqual((verdict["status"], verdict["failed"]), ("fail", ["abi2_engine_tests"]))
+
+    def test_no_catalogue_change_defers_nothing(self):
+        verdict = wstest.classify_ctest(8, ["ui_catalogue_sync"], False)
+        self.assertEqual((verdict["status"], verdict["deferred_to_promotion"]), ("fail", []))
+
+    def test_unexplained_ctest_failure_fails(self):
+        self.assertEqual(wstest.classify_ctest(8, [], True)["status"], "fail")
+        self.assertEqual(wstest.classify_ctest(0, [], False)["status"], "pass")
+
+    def test_catalogue_changed(self):
+        self.assertTrue(wstest.catalogue_changed(self.lab.dir, self.new_module()))
+        folder = self.root / "modules/existing"
+        import shutil
+        shutil.copytree(self.lab.dir / "modules/existing", folder)
+        override = wstest.Module("existing", folder, "override")
+        self.assertFalse(wstest.catalogue_changed(self.lab.dir, override))
+        write(folder / "dsp.h", "// SPDX-License-Identifier: GPL-3.0-only\n#pragma once\n// edit\n")
+        self.assertTrue(wstest.catalogue_changed(self.lab.dir, override))
+
+
 if __name__ == "__main__":
     unittest.main()

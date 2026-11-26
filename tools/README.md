@@ -33,6 +33,14 @@ If a proxy blocks `codeload.github.com`, add `--git-deps`: it runs the pinned la
 T0 stops a module at its first failing step and names it. Results go to `build/wstest-out/<variant>/`
 (`t0.json`, `check.json`, `cpu_probe.json`, the demo WAVs); CI uploads that folder as an artifact.
 
+## T2 verdict
+T2 fails on a full-build failure, any failing lab CTest, a demo-matrix row that is not finite, over its
+peak or not byte-identical across two runs, or an engine-limit probe that cannot render 48 kHz/128.
+Callgrind and Cortex-M7 are advisory. **Lab #652 ruling:** for a module that changes the catalogue (new,
+or an override whose `module.json` or `dsp.h` differs from the pin), the CTests in
+`T2_DEFERRED_TO_PROMOTION` are recorded under `lab_ctest.deferred_to_promotion` and do not fail T2; the
+promotion PR regenerates the catalogue files and the lab CI runs them there.
+
 ## Where things live (all git-ignored)
 - `.lab/<sha>/`: the pinned lab, a shallow git checkout. Refused if it is at another commit or edited.
 - `build/scratch-<sha7>/`: recreated on every run from the pin, plus the module folders and, before lab

@@ -3,7 +3,8 @@
 # lab CTest with the module registered on linux-x64, linux-arm64 and windows-x64; every demo at
 # 44.1/48/96 kHz x blocks 16, 17, 128, 512 (finite, peak bound, two runs byte-identical); callgrind
 # instruction counts (linux-x64, advisory) and a Cortex-M7 compile probe (advisory). Writes t2.json.
-# Never runs on its own (§2.8).
+# Never runs on its own (§2.8). Lab #652 ruling: the three catalogue-sync CTests are deferred to
+# the promotion PR for a module that changes the catalogue (tools/wstest.py T2_DEFERRED_TO_PROMOTION).
 name: T2
 
 on:
@@ -132,9 +133,11 @@ jobs:
           for name, r in sorted(rows.items()):
               c = r.get("checks", {})
               get = lambda k: c.get(k, {}).get("status", "-")
+              ct = c.get("lab_ctest", {})
+              deferred = len(ct.get("deferred_to_promotion", []))
               lines.append(f"| {name} | {r.get('passed')} | {get('full_build')} | {get('lab_ctest')} "
-                           f"({c.get('lab_ctest', {}).get('summary', '')}) | {get('demo_matrix')} | "
-                           f"{get('callgrind')} | {get('cortex_m7')} |")
+                           f"({ct.get('summary', '')}{f'; {deferred} deferred to promotion' if deferred else ''}) | "
+                           f"{get('demo_matrix')} | {get('callgrind')} | {get('cortex_m7')} |")
           if len(rows) != wanted:
               lines.append(f"\nOnly {len(rows)} of {wanted} platforms reported.")
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as s:
