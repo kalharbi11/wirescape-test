@@ -43,4 +43,4 @@ Realtime: no allocation, locks, I/O or exceptions in process, event or reset; fi
   - **Still blocked for T2 and promotion:** the lab's shared CTests wrap ADSR in the lab fixture and
     abort at its port check (`abi2_module_tests`, `port_behavior_tests`). The smallest lab change is
     `ports=8` in `dsp_fixture.h`.
-  - **Lab issue:** to file, labelled `limitation found`; see `modules/README.md`.
+  - **Lab issue:** [lab #664](https://github.com/kalharbi11/wirescape-lab/issues/664), labelled `limitation found`.

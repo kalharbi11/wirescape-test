@@ -32,4 +32,4 @@ Realtime: no allocation, locks, I/O or exceptions in process or reset; fixed 16 
   - **Smallest lab change:** count from the descriptors instead of a constant, and set
     `function_envelope`'s `mode` to Trigger before driving `hold`.
   - **No workaround is possible in the folder**, so T2 and promotion are blocked until the lab test
-    changes. **Lab issue:** to file, labelled `limitation found`; see `modules/README.md`.
+    changes. **Lab issue:** [lab #665](https://github.com/kalharbi11/wirescape-lab/issues/665), labelled `limitation found`.

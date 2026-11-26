@@ -8,7 +8,7 @@ MOD-3 (lab `proposals/0024` §4.2), starting from the lab's `sdk/examples/random
 | Dir | ID | Hint | Meaning |
 |---|---|---|---|
 | in 0 | `clock` | `GATE` | beat source: one beat per `clock_ppq` rising edges (Schmitt .5/.25). Unpatched: the transport |
-| in 1 | `reset` | `TRIGGER` | rising edge: the beat origin is now, and the sequence restarts from its seed |
+| in 1 | `reset` | `TRIGGER` | rising edge: the beat is 0 now (between clock edges too), and the sequence restarts from its seed |
 | out 0 | `stepped` | `CV_BI` | the held value × `depth` |
 | out 1 | `smooth` | `CV_BI` | the same values, glided with an S-curve over `slew` × the step length, × `depth` |
 | out 2 | `step` | `TRIGGER` | a 1 ms pulse on each new value |
@@ -31,6 +31,8 @@ MOD-3 (lab `proposals/0024` §4.2), starting from the lab's `sdk/examples/random
 - **Trigger-to-step** is the default. With `clock_ppq` 1 and division 1/4, every rising edge on `clock`
   is one step, so triggers into `clock` give sample-and-hold, even irregular ones. Faster divisions add
   steps between edges.
+- **Changing `division`** alone draws no value; a new value comes at the next boundary of the new
+  division.
 - **Values** are uniform in [−1, 1). The value at power-on is drawn without a glide or a trigger.
 - **Seeds:** a fixed `seed` gives the same sequence on every run. Module reset and the `reset` input
   restart it. A change of `seed` restarts the sequence at once.

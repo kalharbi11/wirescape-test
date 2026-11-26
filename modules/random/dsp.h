@@ -40,6 +40,7 @@ struct Random {
     bool reset_high = false;
     bool started = false;          // false until the first value after a module reset
     int64_t index = INT64_MIN;     // division period of the last value (INT64_MIN: none yet)
+    double last_length = 0;        // division length of `index` (0: unknown, re-index; not saved)
     uint32_t seed_used = 0;        // the seed parameter the sequence started from
     float held = 0;                // current value in [-1, 1)
     float from = 0, to = 0;        // S-curve glide endpoints
@@ -63,6 +64,7 @@ struct Random {
         reset_high = false;
         started = false;
         index = INT64_MIN;
+        last_length = 0;
         held = from = to = 0;
         glide_pos = glide_len = trig_left = 0;
         reseed(seed_used);
@@ -91,6 +93,10 @@ struct Random {
                 index = INT64_MIN;
             }
             const double length = wsbeat::division_beats(b.param(0).value(0, i));
+            if (length != last_length) {  // a division change alone draws nothing: re-index the beat
+                if (index != INT64_MIN) index = wsbeat::division_index(beat.beat(), length);
+                last_length = length;
+            }
             const double now = beat.step(connected, b.in(0).value(0, i), reset_edge, b.param(4).value(0, i),
                                          t, i, rate);
             const int64_t at = wsbeat::division_index(now, length);
@@ -167,6 +173,7 @@ struct Random {
         beat = clock;
         rng.restore(s);
         index = int64_t(at);
+        last_length = 0;
         held = h; from = f; to = to_value;
         glide_pos = pos; glide_len = len; trig_left = trig; seed_used = seed;
         started = began != 0;

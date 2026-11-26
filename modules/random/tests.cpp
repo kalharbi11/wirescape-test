@@ -75,6 +75,28 @@ static void reset_sets_the_origin() {
     k.step(true, 0, false, 1, nullptr, 0, 48000);
     VERIFY(k.step(true, 1, true, 1, nullptr, 0, 48000) == 0.0);
 }
+// MOD-3a: a reset in clock mode with no edge in the same sample is beat 0 at that sample, and the
+// next edge lands at (1 - fraction) x per_edge.
+static void reset_between_edges() {
+    const uint32_t period = 100;
+    for (uint32_t at : {50u, period - 1}) {
+        BeatClock c;
+        double b = 0;
+        for (uint32_t s = 0; s <= 2 * period; ++s) b = c.step(true, s % period == 0 ? 1.f : 0.f, false, 1, nullptr, 0, 48000);
+        VERIFY(b == 3);  // the edge at 200
+        for (uint32_t s = 1; s < at; ++s) b = c.step(true, 0, false, 1, nullptr, 0, 48000);
+        b = c.step(true, 0, true, 1, nullptr, 0, 48000);  // reset at since = at
+        VERIFY(b == 0);                                    // beat 0 at the reset sample
+        double prev = b;
+        for (uint32_t s = at + 1; s < period; ++s) {
+            b = c.step(true, 0, false, 1, nullptr, 0, 48000);
+            VERIFY(b >= prev && b < 1);
+            prev = b;
+        }
+        b = c.step(true, 1, false, 1, nullptr, 0, 48000);  // the next edge
+        VERIFY(std::abs(b - (1. - double(at) / period)) < 1e-12);
+    }
+}
 static void division_table() {
     const double expect[18] = {16, 8, 4, 3, 2, 1.5, 4. / 3, 1, .75, 2. / 3, .5, .375, 1. / 3, .25, .1875, 1. / 6, .125, 1. / 12};
     for (int i = 0; i < 18; ++i) {
@@ -185,6 +207,38 @@ static void division_ratchets_between_edges() {
     }
     VERIFY(changes == 7);  // 8 values in two beats; the first lands at sample 0
 }
+// MOD-3a: a reset one sample before an edge gives exactly one new value (not a double step).
+static void reset_before_edge_single_step() {
+    auto f = rig();
+    f->parameter[2][0][0] = 0;
+    std::vector<float> s;
+    for (int block = 0; block < 2; ++block) {
+        for (uint32_t i = 0; i < 256; ++i) f->input[0][0][i] = i % 64 == 0 ? 1.f : 0.f;  // period 64
+        if (block == 1) f->input[1][0][127] = 1;                                         // since = 63
+        f->run(256);
+        s.insert(s.end(), f->output[0][0], f->output[0][0] + 256);
+        f->input[1][0][127] = 0;
+    }
+    uint32_t changes = 0;
+    for (uint32_t i = 256 + 120; i < 256 + 190; ++i) changes += s[i] != s[i - 1];
+    VERIFY(changes == 1);  // the value drawn at the reset; the edge at 128 is inside that step
+    VERIFY(s[256 + 127] != s[256 + 126] && s[256 + 128] == s[256 + 127]);
+}
+// MOD-3a: a division change alone draws no value; only a boundary crossed by the beat does.
+static void division_sweep_fires_no_step() {
+    auto f = rig();
+    // One edge at sample 0, then none: before a second edge the beat moves only at edges (beat 1).
+    for (uint32_t i = 0; i < 256; ++i) f->input[0][0][i] = i == 0 ? 1.f : 0.f;
+    f->parameter[0][0][0] = 0;
+    f->run(256);
+    std::fill_n(f->input[0][0], 256, 0.f);
+    for (int sweep = 0; sweep < 2; ++sweep) {
+        f->pars[0].flags = 0;  // division by cable: a value per sample
+        for (uint32_t i = 0; i < 256; ++i) f->parameter[0][0][i] = sweep ? 17.f - 17.f * i / 255.f : 17.f * i / 255.f;
+        f->run(256);
+        for (uint32_t i = 0; i < 256; ++i) VERIFY(f->output[2][0][i] == 0);
+    }
+}
 static void sixteen_channel_host_and_extremes() {
     auto f = rig(16);
     for (uint32_t i = 0; i < 256; ++i) for (uint32_t c = 0; c < 16; ++c) f->input[0][c][i] = i % 16 < 2 ? 1.f : 0.f;
@@ -258,11 +312,14 @@ int main() {
     clock_ppq();
     transport_playing_and_stopped();
     reset_sets_the_origin();
+    reset_between_edges();
     division_table();
     trigger_to_step_at_defaults();
     seeds();
     glide_and_depth();
     division_ratchets_between_edges();
+    reset_before_edge_single_step();
+    division_sweep_fires_no_step();
     sixteen_channel_host_and_extremes();
     state_round_trip();
     zero_allocations();
