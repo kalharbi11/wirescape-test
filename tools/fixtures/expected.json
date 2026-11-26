@@ -1,0 +1,13 @@
+{
+ "SPDX-License-Identifier": "GPL-3.0-only",
+ "default": {
+  "gain": null,
+  "nan_gain": "demos",
+  "alloc_gain": "cpu_probe"
+ },
+ "sanitize": {
+  "gain": null,
+  "nan_gain": "demos",
+  "alloc_gain": null
+ }
+}

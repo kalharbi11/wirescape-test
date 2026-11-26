@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# T1 (lab proposals/0024 §2.4, §2.8): ready (non-draft) PRs and main only. T0 on linux-arm64 (the Pi
+# is the first target) and Windows x64 (MSVC, the lab's PortAudio steps), plus T0 steps 2-4 under
+# ASan and UBSan on Linux x64. Required check: "t1".
+name: T1
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: t1-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  scope:
+    name: scope
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+      all: ${{ steps.scope.outputs.all }}
+      modules: ${{ steps.scope.outputs.modules }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Classify changed paths (fails closed to everything)
+        id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ -n "$BASE" ] && [ -n "$HEAD" ]; then
+            python3 tools/wstest.py scope --base "$BASE" --head "$HEAD"
+          else
+            python3 tools/wstest.py scope
+          fi
+
+  linux-arm64:
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
+    uses: ./.github/workflows/wstest-run.yml
+    with:
+      platform: linux-arm64
+      runner: ubuntu-24.04-arm
+      modules: ${{ needs.scope.outputs.modules }}
+      all: ${{ needs.scope.outputs.all == 'true' }}
+
+  windows-x64:
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
+    uses: ./.github/workflows/wstest-run.yml
+    with:
+      platform: windows-x64
+      runner: windows-2022
+      modules: ${{ needs.scope.outputs.modules }}
+      all: ${{ needs.scope.outputs.all == 'true' }}
+
+  sanitizers:
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
+    uses: ./.github/workflows/wstest-run.yml
+    with:
+      platform: linux-x64
+      runner: ubuntu-latest
+      sanitize: true
+      modules: ${{ needs.scope.outputs.modules }}
+      all: ${{ needs.scope.outputs.all == 'true' }}
+
+  t1:
+    name: t1
+    needs: [scope, linux-arm64, windows-x64, sanitizers]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every T1 run to pass (a draft PR skips T1; marking it ready runs it)
+        env:
+          DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
+          SCOPE: ${{ needs.scope.result }}
+          RESULTS: ${{ needs.linux-arm64.result }} ${{ needs.windows-x64.result }} ${{ needs.sanitizers.result }}
+        run: |
+          echo "draft=$DRAFT scope=$SCOPE runs=$RESULTS"
+          if [ "$DRAFT" = true ]; then echo "Draft PR: T1 runs when the PR is marked ready."; exit 0; fi
+          [ "$SCOPE" = success ] || exit 1
+          for r in $RESULTS; do case "$r" in success|skipped) ;; *) exit 1 ;; esac; done

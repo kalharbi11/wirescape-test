@@ -1,0 +1,119 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# One wstest platform run, called by t0.yml and t1.yml (lab proposals/0024 §2.4, §2.8).
+# Devices off: nothing here opens audio, MIDI or the LAN; the lab is fetched at LAB_PIN only.
+name: wstest run
+
+on:
+  workflow_call:
+    inputs:
+      platform: { type: string, required: true }
+      runner: { type: string, required: true }
+      sanitize: { type: boolean, default: false }
+      modules: { type: string, default: '' }
+      all: { type: boolean, default: false }
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    name: ${{ inputs.platform }}${{ inputs.sanitize && ' asan+ubsan' || '' }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONUNBUFFERED: '1'
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 500M
+      CCACHE_COMPILERCHECK: content
+      CCACHE_BASEDIR: ${{ github.workspace }}
+    steps:
+      - name: Start the wall clock
+        run: echo "WSTEST_START=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install the lab's pinned CMake and Ninja
+        run: python -m pip install cmake==4.2.3 ninja==1.13.0
+      - name: Use every runner core
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then cores="$NUMBER_OF_PROCESSORS"; else cores="$(nproc)"; fi
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$cores" >> "$GITHUB_ENV"
+      - name: Install ccache (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ccache
+          echo "Compiler: $(c++ --version | head -1)"
+          echo "WSTEST_TOOLCHAIN=$(c++ --version | head -1 | tr -c 'A-Za-z0-9.' '-')" >> "$GITHUB_ENV"
+      - name: Restore ccache (keyed by LAB_PIN and toolchain)
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-${{ inputs.platform }}-${{ inputs.sanitize && 'sanitize' || 'release' }}-${{ env.WSTEST_TOOLCHAIN }}-${{ hashFiles('LAB_PIN') }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-${{ inputs.platform }}-${{ inputs.sanitize && 'sanitize' || 'release' }}-${{ env.WSTEST_TOOLCHAIN }}-${{ hashFiles('LAB_PIN') }}-
+            ccache-${{ inputs.platform }}-${{ inputs.sanitize && 'sanitize' || 'release' }}-${{ env.WSTEST_TOOLCHAIN }}-
+      # The lab's pinned PortAudio steps (lab .github/workflows/ci.yml, native job). The T0 targets do
+      # not load it; it keeps the Windows toolchain the same as the lab's and T2's full CTest.
+      - name: Fetch pinned PortAudio (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/checkout@v4
+        with:
+          repository: PortAudio/portaudio
+          ref: 147dd722548358763a8b649b3e4b41dfffbcfbb6
+          path: .tools/portaudio-src
+          persist-credentials: false
+      - name: Build pinned PortAudio (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake -S .tools/portaudio-src -B .tools/portaudio-build -G "Visual Studio 17 2022" -A x64 "-DCMAKE_POLICY_VERSION_MINIMUM=3.5" -DPA_BUILD_SHARED=ON -DPA_BUILD_STATIC=OFF -DPA_BUILD_TESTS=OFF -DPA_BUILD_EXAMPLES=OFF -DPA_USE_ASIO=OFF
+          if ($LASTEXITCODE) { throw 'PortAudio configure failed' }
+          cmake --build .tools/portaudio-build --config Release --parallel 2
+          if ($LASTEXITCODE) { throw 'PortAudio build failed' }
+          $dll = Get-ChildItem .tools/portaudio-build -Recurse -Filter '*portaudio*.dll' | Select-Object -First 1
+          if (!$dll) { throw 'PortAudio DLL unavailable' }
+          "WIRESCAPE_PORTAUDIO=$($dll.FullName)" >> $env:GITHUB_ENV
+          "WSTEST_GENERATOR=Visual Studio 17 2022" >> $env:GITHUB_ENV
+      - name: Fetch the lab at LAB_PIN
+        run: python tools/wstest.py fetch
+      - name: Harness unit tests
+        if: inputs.all
+        run: python -m unittest discover -s tools/tests -v
+      - name: T0 on changed modules
+        if: inputs.modules != ''
+        env:
+          MODULES: ${{ inputs.modules }}
+          SANITIZE: ${{ inputs.sanitize && '--sanitize' || '' }}
+        # MODULES holds folder names that match ^[a-z][a-z0-9_]*$ (wstest scope); split on spaces.
+        run: python tools/wstest.py t0 $SANITIZE $MODULES
+      - name: Harness self-test (fixtures; git status must stay clean)
+        if: inputs.all
+        env:
+          SANITIZE: ${{ inputs.sanitize && '--sanitize' || '' }}
+        run: python tools/wstest.py selftest $SANITIZE
+      - name: Record wall time
+        if: always()
+        run: |
+          elapsed=$(( $(date +%s) - WSTEST_START ))
+          echo "Wall time for ${{ inputs.platform }}${{ inputs.sanitize && ' asan+ubsan' || '' }}: ${elapsed} s"
+          echo "**Job wall time:** ${elapsed} s (budget for T0 on a hosted runner: 600 s)" >> "$GITHUB_STEP_SUMMARY"
+      - name: ccache statistics
+        if: always() && runner.os == 'Linux'
+        run: ccache --show-stats || true
+      - name: Upload renders and reports (WAVs are artifacts, never committed)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wstest-${{ inputs.platform }}${{ inputs.sanitize && '-sanitize' || '' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/wstest-out/
+          if-no-files-found: ignore
+          retention-days: 14
