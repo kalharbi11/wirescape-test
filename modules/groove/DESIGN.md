@@ -56,12 +56,9 @@ and cutoff retain the pin's precision for fractional timing.
 
 ### Limitations
 
-Workshop harness [#39](https://github.com/kalharbi11/wirescape-test/issues/39):
-the pin builds Groove directly from engine/CMakeLists.txt; the override's
-CMakeLists.txt is not registered by wstest. Its standalone regression target
-is `abi2_groove_tests`. Run the standalone CMake target inside an isolated
-scratch lab copy (cmake -S modules/groove -B build/groove-mod7, build, then
-ctest) as supplemental evidence; T0/T1 must also actually execute the new
-target before merge. Existing host Groove tests alone are insufficient.
-No lab change or tool gate waiver is proposed. No verified build or render
-results yet.
+Workshop harness [#39](https://github.com/kalharbi11/wirescape-test/issues/39) was resolved by
+PR #51 (workshop main `4a551b2`). The pin builds Groove directly from engine/CMakeLists.txt;
+the harness now registers `abi2_groove_tests` and retains both legacy host tests. The standalone
+CMake target also remains available for isolated scratch validation. Hosted T0/T1 must actually
+execute the module-local regression before merge; see PR #43 for exact-head evidence.
+No lab behavior change or gate waiver is needed.

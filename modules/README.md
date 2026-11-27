@@ -15,7 +15,7 @@ One row per folder in `modules/`. Specs are in lab
 | `random` | `essentials.random` | new | §4.2 (starts from lab `sdk/examples/random_source`) | MOD-3 (#7), MOD-3a (#13) | 1 | T1 |
 | `clock_divmult` | `essentials.clock_divmult` | new | §4.3 | MOD-4 (#14) | 1 | T1; SDK-1 lab issue to file (`beat_clock.h`) |
 | `macro` | `essentials.macro` | new | §3.1 | MOD-5 (#8) | 1 | T1 |
-| `rhythm_lanes` | `sequencing.rhythm_lanes` | new | §4.4 (original design) | MOD-6 | 2 | planned |
+| `rhythm_lanes` | `sequencing.rhythm_lanes` | new | §4.4 (original design) | MOD-6 (#25) | 2 | T1 |
 | chord, cv_to_notes, midi_in, midi_to_cv, notes_to_cv, quantizer | (existing) | override | §4.6 batch A, flags only | MOD-7 | 2 | planned |
 | `groove` | `sequencing.groove` | override | §4.6 batch A, ten flags | MOD-7-groove (#28) | 2 | draft |
 | `host_keyboard` | `host.keyboard` | override | §4.6 octave modulation | MOD-7 (#30) | 2 | draft |

@@ -1,0 +1,904 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "id": "sequencing.rhythm_lanes",
+  "name": "Rhythm Lanes",
+  "category": "Timing",
+  "ports": [
+    {
+      "id": "clock",
+      "name": "Clock",
+      "direction": "input",
+      "hint": "gate",
+      "poly": "first",
+      "kind": "signal",
+      "stereo_pair": null
+    },
+    {
+      "id": "reset",
+      "name": "Reset",
+      "direction": "input",
+      "hint": "trigger",
+      "poly": "first",
+      "kind": "signal",
+      "stereo_pair": null
+    },
+    {
+      "id": "lane1",
+      "name": "Lane 1",
+      "direction": "output",
+      "hint": "cv_uni",
+      "poly": "poly",
+      "kind": "signal",
+      "stereo_pair": null
+    },
+    {
+      "id": "lane2",
+      "name": "Lane 2",
+      "direction": "output",
+      "hint": "cv_uni",
+      "poly": "poly",
+      "kind": "signal",
+      "stereo_pair": null
+    },
+    {
+      "id": "lane3",
+      "name": "Lane 3",
+      "direction": "output",
+      "hint": "cv_uni",
+      "poly": "poly",
+      "kind": "signal",
+      "stereo_pair": null
+    },
+    {
+      "id": "lane4",
+      "name": "Lane 4",
+      "direction": "output",
+      "hint": "cv_uni",
+      "poly": "poly",
+      "kind": "signal",
+      "stereo_pair": null
+    }
+  ],
+  "parameters": [
+    {
+      "id": "division_1",
+      "name": "Division 1",
+      "minimum": 0,
+      "maximum": 17,
+      "default": 7,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true,
+      "choices": [
+        {
+          "value": 0,
+          "label": "4 bars"
+        },
+        {
+          "value": 1,
+          "label": "2 bars"
+        },
+        {
+          "value": 2,
+          "label": "1 bar"
+        },
+        {
+          "value": 3,
+          "label": "1/2."
+        },
+        {
+          "value": 4,
+          "label": "1/2"
+        },
+        {
+          "value": 5,
+          "label": "1/4."
+        },
+        {
+          "value": 6,
+          "label": "1/2T"
+        },
+        {
+          "value": 7,
+          "label": "1/4"
+        },
+        {
+          "value": 8,
+          "label": "1/8."
+        },
+        {
+          "value": 9,
+          "label": "1/4T"
+        },
+        {
+          "value": 10,
+          "label": "1/8"
+        },
+        {
+          "value": 11,
+          "label": "1/16."
+        },
+        {
+          "value": 12,
+          "label": "1/8T"
+        },
+        {
+          "value": 13,
+          "label": "1/16"
+        },
+        {
+          "value": 14,
+          "label": "1/32."
+        },
+        {
+          "value": 15,
+          "label": "1/16T"
+        },
+        {
+          "value": 16,
+          "label": "1/32"
+        },
+        {
+          "value": 17,
+          "label": "1/32T"
+        }
+      ]
+    },
+    {
+      "id": "shape_1",
+      "name": "Shape 1",
+      "minimum": 0,
+      "maximum": 7,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Gate"
+        },
+        {
+          "value": 1,
+          "label": "Trigger"
+        },
+        {
+          "value": 2,
+          "label": "Ramp up"
+        },
+        {
+          "value": 3,
+          "label": "Ramp down"
+        },
+        {
+          "value": 4,
+          "label": "Triangle"
+        },
+        {
+          "value": 5,
+          "label": "Sine"
+        },
+        {
+          "value": 6,
+          "label": "Random stepped"
+        },
+        {
+          "value": 7,
+          "label": "Random smooth"
+        }
+      ]
+    },
+    {
+      "id": "width_1",
+      "name": "Width 1",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "unit": "",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "phase_1",
+      "name": "Phase 1",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "probability_1",
+      "name": "Probability 1",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "steps_1",
+      "name": "Steps 1",
+      "minimum": 1,
+      "maximum": 16,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true
+    },
+    {
+      "id": "fill_1",
+      "name": "Fill 1",
+      "minimum": 0,
+      "maximum": 16,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true
+    },
+    {
+      "id": "rotate_1",
+      "name": "Rotate 1",
+      "minimum": 0,
+      "maximum": 15,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true
+    },
+    {
+      "id": "division_2",
+      "name": "Division 2",
+      "minimum": 0,
+      "maximum": 17,
+      "default": 10,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true,
+      "choices": [
+        {
+          "value": 0,
+          "label": "4 bars"
+        },
+        {
+          "value": 1,
+          "label": "2 bars"
+        },
+        {
+          "value": 2,
+          "label": "1 bar"
+        },
+        {
+          "value": 3,
+          "label": "1/2."
+        },
+        {
+          "value": 4,
+          "label": "1/2"
+        },
+        {
+          "value": 5,
+          "label": "1/4."
+        },
+        {
+          "value": 6,
+          "label": "1/2T"
+        },
+        {
+          "value": 7,
+          "label": "1/4"
+        },
+        {
+          "value": 8,
+          "label": "1/8."
+        },
+        {
+          "value": 9,
+          "label": "1/4T"
+        },
+        {
+          "value": 10,
+          "label": "1/8"
+        },
+        {
+          "value": 11,
+          "label": "1/16."
+        },
+        {
+          "value": 12,
+          "label": "1/8T"
+        },
+        {
+          "value": 13,
+          "label": "1/16"
+        },
+        {
+          "value": 14,
+          "label": "1/32."
+        },
+        {
+          "value": 15,
+          "label": "1/16T"
+        },
+        {
+          "value": 16,
+          "label": "1/32"
+        },
+        {
+          "value": 17,
+          "label": "1/32T"
+        }
+      ]
+    },
+    {
+      "id": "shape_2",
+      "name": "Shape 2",
+      "minimum": 0,
+      "maximum": 7,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Gate"
+        },
+        {
+          "value": 1,
+          "label": "Trigger"
+        },
+        {
+          "value": 2,
+          "label": "Ramp up"
+        },
+        {
+          "value": 3,
+          "label": "Ramp down"
+        },
+        {
+          "value": 4,
+          "label": "Triangle"
+        },
+        {
+          "value": 5,
+          "label": "Sine"
+        },
+        {
+          "value": 6,
+          "label": "Random stepped"
+        },
+        {
+          "value": 7,
+          "label": "Random smooth"
+        }
+      ]
+    },
+    {
+      "id": "width_2",
+      "name": "Width 2",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "unit": "",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "phase_2",
+      "name": "Phase 2",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "probability_2",
+      "name": "Probability 2",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "steps_2",
+      "name": "Steps 2",
+      "minimum": 1,
+      "maximum": 16,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true
+    },
+    {
+      "id": "fill_2",
+      "name": "Fill 2",
+      "minimum": 0,
+      "maximum": 16,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true
+    },
+    {
+      "id": "rotate_2",
+      "name": "Rotate 2",
+      "minimum": 0,
+      "maximum": 15,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true
+    },
+    {
+      "id": "division_3",
+      "name": "Division 3",
+      "minimum": 0,
+      "maximum": 17,
+      "default": 13,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true,
+      "choices": [
+        {
+          "value": 0,
+          "label": "4 bars"
+        },
+        {
+          "value": 1,
+          "label": "2 bars"
+        },
+        {
+          "value": 2,
+          "label": "1 bar"
+        },
+        {
+          "value": 3,
+          "label": "1/2."
+        },
+        {
+          "value": 4,
+          "label": "1/2"
+        },
+        {
+          "value": 5,
+          "label": "1/4."
+        },
+        {
+          "value": 6,
+          "label": "1/2T"
+        },
+        {
+          "value": 7,
+          "label": "1/4"
+        },
+        {
+          "value": 8,
+          "label": "1/8."
+        },
+        {
+          "value": 9,
+          "label": "1/4T"
+        },
+        {
+          "value": 10,
+          "label": "1/8"
+        },
+        {
+          "value": 11,
+          "label": "1/16."
+        },
+        {
+          "value": 12,
+          "label": "1/8T"
+        },
+        {
+          "value": 13,
+          "label": "1/16"
+        },
+        {
+          "value": 14,
+          "label": "1/32."
+        },
+        {
+          "value": 15,
+          "label": "1/16T"
+        },
+        {
+          "value": 16,
+          "label": "1/32"
+        },
+        {
+          "value": 17,
+          "label": "1/32T"
+        }
+      ]
+    },
+    {
+      "id": "shape_3",
+      "name": "Shape 3",
+      "minimum": 0,
+      "maximum": 7,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Gate"
+        },
+        {
+          "value": 1,
+          "label": "Trigger"
+        },
+        {
+          "value": 2,
+          "label": "Ramp up"
+        },
+        {
+          "value": 3,
+          "label": "Ramp down"
+        },
+        {
+          "value": 4,
+          "label": "Triangle"
+        },
+        {
+          "value": 5,
+          "label": "Sine"
+        },
+        {
+          "value": 6,
+          "label": "Random stepped"
+        },
+        {
+          "value": 7,
+          "label": "Random smooth"
+        }
+      ]
+    },
+    {
+      "id": "width_3",
+      "name": "Width 3",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "unit": "",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "phase_3",
+      "name": "Phase 3",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "probability_3",
+      "name": "Probability 3",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "steps_3",
+      "name": "Steps 3",
+      "minimum": 1,
+      "maximum": 16,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true
+    },
+    {
+      "id": "fill_3",
+      "name": "Fill 3",
+      "minimum": 0,
+      "maximum": 16,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true
+    },
+    {
+      "id": "rotate_3",
+      "name": "Rotate 3",
+      "minimum": 0,
+      "maximum": 15,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true
+    },
+    {
+      "id": "division_4",
+      "name": "Division 4",
+      "minimum": 0,
+      "maximum": 17,
+      "default": 2,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true,
+      "choices": [
+        {
+          "value": 0,
+          "label": "4 bars"
+        },
+        {
+          "value": 1,
+          "label": "2 bars"
+        },
+        {
+          "value": 2,
+          "label": "1 bar"
+        },
+        {
+          "value": 3,
+          "label": "1/2."
+        },
+        {
+          "value": 4,
+          "label": "1/2"
+        },
+        {
+          "value": 5,
+          "label": "1/4."
+        },
+        {
+          "value": 6,
+          "label": "1/2T"
+        },
+        {
+          "value": 7,
+          "label": "1/4"
+        },
+        {
+          "value": 8,
+          "label": "1/8."
+        },
+        {
+          "value": 9,
+          "label": "1/4T"
+        },
+        {
+          "value": 10,
+          "label": "1/8"
+        },
+        {
+          "value": 11,
+          "label": "1/16."
+        },
+        {
+          "value": 12,
+          "label": "1/8T"
+        },
+        {
+          "value": 13,
+          "label": "1/16"
+        },
+        {
+          "value": 14,
+          "label": "1/32."
+        },
+        {
+          "value": 15,
+          "label": "1/16T"
+        },
+        {
+          "value": 16,
+          "label": "1/32"
+        },
+        {
+          "value": 17,
+          "label": "1/32T"
+        }
+      ]
+    },
+    {
+      "id": "shape_4",
+      "name": "Shape 4",
+      "minimum": 0,
+      "maximum": 7,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Gate"
+        },
+        {
+          "value": 1,
+          "label": "Trigger"
+        },
+        {
+          "value": 2,
+          "label": "Ramp up"
+        },
+        {
+          "value": 3,
+          "label": "Ramp down"
+        },
+        {
+          "value": 4,
+          "label": "Triangle"
+        },
+        {
+          "value": 5,
+          "label": "Sine"
+        },
+        {
+          "value": 6,
+          "label": "Random stepped"
+        },
+        {
+          "value": 7,
+          "label": "Random smooth"
+        }
+      ]
+    },
+    {
+      "id": "width_4",
+      "name": "Width 4",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "unit": "",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "phase_4",
+      "name": "Phase 4",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "probability_4",
+      "name": "Probability 4",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "steps_4",
+      "name": "Steps 4",
+      "minimum": 1,
+      "maximum": 16,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true
+    },
+    {
+      "id": "fill_4",
+      "name": "Fill 4",
+      "minimum": 0,
+      "maximum": 16,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true
+    },
+    {
+      "id": "rotate_4",
+      "name": "Rotate 4",
+      "minimum": 0,
+      "maximum": 15,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true
+    },
+    {
+      "id": "clock_ppq",
+      "name": "Clock PPQ",
+      "minimum": 1,
+      "maximum": 24,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": false
+    },
+    {
+      "id": "seed",
+      "name": "Seed",
+      "minimum": 0,
+      "maximum": 65535,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": false
+    }
+  ]
+}
