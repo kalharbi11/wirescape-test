@@ -1546,11 +1546,23 @@ def cmd_app(args) -> int:
 def stop_process(proc: subprocess.Popen) -> None:
     if proc.poll() is not None:
         return
+    if os.name == "nt":
+        try:
+            result = subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                                    capture_output=True, check=False, timeout=30)
+            if result.returncode:
+                raise Refused(f"taskkill failed (exit {result.returncode}); cannot verify process tree cleanup")
+            proc.wait(timeout=10)
+        except (OSError, subprocess.TimeoutExpired, Refused) as error:
+            # Reap the immediate child even when tree termination cannot be verified.
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait(timeout=10)
+            raise Refused(f"Windows process tree cleanup failed: {error}") from error
+        log("taskkill: process tree stopped")
+        return
     try:
-        if os.name == "nt":
-            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True, check=False)
-        else:
-            os.killpg(proc.pid, signal.SIGTERM)
+        os.killpg(proc.pid, signal.SIGTERM)
         proc.wait(timeout=10)
     except (OSError, subprocess.TimeoutExpired):
         proc.kill()
@@ -1587,11 +1599,11 @@ def cmd_ui(args) -> int:
     command = [tool_path("npm"), "run", "dev", "--", "--port", str(args.port), "--strictPort"]
     options = {"start_new_session": True} if os.name != "nt" else {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
     proc = subprocess.Popen(command, cwd=str(scratch / "apps/studio"), **options)
-    log(f"Studio dev server: http://localhost:{args.port}/  (edit modules/<name>/panel.json or presentation.json; "
-        "Ctrl+C stops)")
-    tracked = lab.tracked()
-    state = watched(modules)
     try:
+        log(f"Studio dev server: http://localhost:{args.port}/  (edit modules/<name>/panel.json or presentation.json; "
+            "Ctrl+C stops)")
+        tracked = lab.tracked()
+        state = watched(modules)
         while proc.poll() is None:
             time.sleep(0.5)
             now = watched(modules)

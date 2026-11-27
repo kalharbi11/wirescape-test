@@ -89,6 +89,17 @@ locked Playwright Chromium. PNGs in `build/shots/` are uploaded as `panel-smoke-
 Non-panel modules are explicitly skipped; command failures fail the required `t0` gate. This checks
 buildability and the fake-engine card, not Electron runtime, audio, or MIDI. Devices stay off.
 
+## Windows app smoke (T1)
+The existing Windows T1 job uses the same scoped panel-module selection. It runs `app` without
+`--launch` and with `ELECTRON_SKIP_BINARY_DOWNLOAD=1`, then `ui --check` (real npm.cmd and npx.cmd).
+A separate Windows console runs `ui` on a free loopback port; after an HTTP response the smoke sends
+Ctrl+C only to that console, requires the harness KeyboardInterrupt and successful taskkill tree-cleanup
+witness, clean exit and a closed listener. Any failed command or cleanup fails the Windows job and
+therefore T1. The test uses Studio's fake engine; it does not open a browser, launch Electron,
+exercise its runtime, or access audio/MIDI devices. No panel files means no app builds.
+The check witnesses the taskkill tree result and listener disappearance, not an exhaustive process
+inventory.
+
 ## `app`, `ui` and `panel.json` (local conveniences, not test tiers)
 `modules/<name>/panel.json` is optional: one Studio `PanelOverride` object plus the SPDX key (keys in
 [PROTOTYPING.md](../PROTOTYPING.md); unknown keys and an `id` that does not match `dsp.h` are refused).
