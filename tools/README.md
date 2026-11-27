@@ -9,6 +9,7 @@ Devices stay off: nothing opens audio, MIDI or the LAN.
 ```sh
 python tools/wstest.py fetch                  # the lab at LAB_PIN into .lab/<sha>/
 python tools/wstest.py t0 <name>...           # T0 for modules/<name> (or a folder path)
+python tools/wstest.py render <name>          # fast offline WAV preview, not T0
 python tools/wstest.py t0 --sanitize <name>   # T1's ASan+UBSan run: register, check, build, tests, demos
 python tools/wstest.py build <name>...        # register and build only
 python tools/wstest.py identical <name>...    # overrides: renders byte-identical to the pin
@@ -16,6 +17,8 @@ python tools/wstest.py selftest               # T0 on tools/fixtures; outcomes i
 python tools/wstest.py t2 <name>              # T2 (normally the owner's dispatch of t2.yml)
 python tools/wstest.py app <name>...          # local only: engine + Studio + desktop build in build/app-<sha7>/; --launch starts it (owner only: may open audio)
 python tools/wstest.py ui <name>...           # local only: Studio dev server (fake engine); edit panel.json / presentation.json, reload
+python tools/wstest.py shot <name> [--dark]   # local only: render the module's card in the app tree's Studio to a PNG
+python tools/wstest.py studio-diff            # regenerate tools/studio/lab.patch (workshop Studio overlay, app tree only)
 python -m unittest discover -s tools/tests    # fast harness unit tests (fake lab, no build)
 ```
 If a proxy blocks `codeload.github.com`, add `--git-deps`: it runs the pinned lab's own
@@ -34,6 +37,35 @@ If a proxy blocks `codeload.github.com`, add `--git-deps`: it runs the pinned la
 
 T0 stops a module at its first failing step and names it. Results go to `build/wstest-out/<variant>/`
 (`t0.json`, `check.json`, `cpu_probe.json`, the demo WAVs); CI uploads that folder as an artifact.
+
+## MB1 compatibility (lab A106)
+
+Pins containing the MB1 descriptor-equality witness prepare a scratch tree before the normal build:
+configure a fresh out-of-tree build, build only its `wire-describe` target, and run the pin's
+`tools/gen_ui_catalogue.py --describe <scratch build>/wire-describe`. Missing targets or generated
+known-ID drift refuse registration. Only two more scratch paths are permitted:
+`tools/foundation/fixtures/known_module_ids.txt` (checked against the live descriptor's sorted IDs)
+and `bench/module_sets.json` (only staged new IDs appended to `experimental`, all existing bytes retained;
+overrides add nothing). Older pins continue to use their original generator. The UI, S0 and
+`abi2_wire_describe_equality` gates are unchanged. The descriptor build is isolated from the full build,
+and no binary from another scratch or the host is used.
+
+## Fast offline listening preview
+
+```sh
+python tools/wstest.py render macro
+python tools/wstest.py render macro --rate 44100 --block 48
+```
+
+`render <name> [--demo <file>] [--rate R] [--block B]` registers one module in the usual
+strictly verified scratch tree, builds only `wirescape_render` (plus the MB1 descriptor prerequisite
+when required), and renders every demo or the named JSON file from its `demos/` folder.
+The rate/block default to each demo's settings. Each WAV is at
+`build/wstest-out/render/<name>/<demo-stem>/audio.wav`; the command prints peak (linear FS)
+and whether every sample is finite. A failed renderer or non-finite audio returns nonzero.
+This is not a test tier: no wsmod check, module CTest, CPU probe, identical or demo evidence
+window/peak-limit assertions. Run T0 for those gates. Devices remain off; WAVs are ignored and
+the Linux x64 harness-wide CI job smoke-runs Macro.
 
 ## T2 verdict
 T2 fails on a full-build failure, any failing lab CTest, a demo-matrix row that is not finite, over its
@@ -59,7 +91,7 @@ Only `app` and `ui` use it: they prepare `build/app-<sha7>/` like T0's tree plus
   and `apps/desktop` only when `node_modules` is missing or `package-lock.json` changed, runs
   `npm run build` in `apps/desktop` (it builds Studio too) and prints the Electron command. Only `--launch`
   starts the app; it may open audio devices, so agents and CI never pass it.
-- `ui`: no C++ build; runs `npm run dev -- --port N --strictPort` in the app tree and polls `panel.json` and
+- `ui`: no engine build (MB1 pins require the descriptor-only build above); runs `npm run dev -- --port N --strictPort` in the app tree and polls `panel.json` and
   `presentation.json` every 0.5 s, re-applying them (and re-running the pin's `gen_ui_catalogue.py`).
   `--no-serve` prepares the tree and exits.
 `node_modules`, `dist` and `build` inside the app tree survive a refresh.
