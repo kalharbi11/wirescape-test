@@ -1,0 +1,100 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "id": "host.keyboard",
+  "name": "Keyboard",
+  "category": "MIDI / control",
+  "ports": [
+    {
+      "id": "pitch",
+      "name": "Pitch",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "pitch",
+      "poly": "poly",
+      "stereo_pair": null
+    },
+    {
+      "id": "gate",
+      "name": "Gate",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "gate",
+      "poly": "poly",
+      "stereo_pair": null
+    },
+    {
+      "id": "velocity",
+      "name": "Velocity",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_uni",
+      "poly": "poly",
+      "stereo_pair": null
+    },
+    {
+      "id": "notes",
+      "name": "Notes",
+      "direction": "output",
+      "kind": "event",
+      "hint": "ev_notes",
+      "poly": "poly",
+      "stereo_pair": null
+    }
+  ],
+  "parameters": [
+    {
+      "id": "voices",
+      "name": "Voices",
+      "minimum": 1,
+      "maximum": 16,
+      "default": 8,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 3,
+      "modulatable": false
+    },
+    {
+      "id": "mode",
+      "name": "Mode",
+      "minimum": 0,
+      "maximum": 3,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 3,
+      "modulatable": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Rotate"
+        },
+        {
+          "value": 1,
+          "label": "Reuse"
+        },
+        {
+          "value": 2,
+          "label": "Reset"
+        },
+        {
+          "value": 3,
+          "label": "Mono"
+        }
+      ]
+    },
+    {
+      "id": "octave",
+      "name": "Octave",
+      "minimum": -3,
+      "maximum": 3,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 3,
+      "modulatable": true
+    }
+  ]
+}
