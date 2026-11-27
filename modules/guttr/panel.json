@@ -7,11 +7,7 @@
       "label": "01 / PERFORMANCE",
       "params": [
         "vowel",
-        "pressure"
-      ]
-    },
-    {
-      "params": [
+        "pressure",
         "style",
         "breath",
         "whisper"
@@ -32,19 +28,15 @@
         "growl",
         "creak",
         "tail_fry",
-        "breaks"
-      ]
-    },
-    {
-      "params": [
-        "jitter",
-        "shimmer",
+        "breaks",
         "rasp",
         "flutter"
       ]
     },
     {
       "params": [
+        "jitter",
+        "shimmer",
         "tremor",
         "wander",
         "vibrato"
