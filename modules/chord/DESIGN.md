@@ -23,7 +23,7 @@ then uses allocated pitch/gate lanes to drive VCO/ADSR/VCA;
 wstest identical must compare the unmodulated output with the pristine pin.
 
 ## Limitations
-Blocked on PIN-next #35: [LR-11](../../LAB_REQUESTS.md) / [lab #718](https://github.com/kalharbi11/wirescape-lab/issues/718).
+Historical blocker: [LR-11](../../LAB_REQUESTS.md) / [lab #718](https://github.com/kalharbi11/wirescape-lab/issues/718).
 The pinned isolated CPU probe passes null configuration with zero bytes to
 prepare, whereas Chord requires a unique four-byte graph-instance tag.
 The corrected demo and abi2_chord_tests pass on Linux x64 and ARM64 at
@@ -34,6 +34,6 @@ Original instance-tag alias and activation capacity limits remain as documented
 in README. Lab PR [#724](https://github.com/kalharbi11/wirescape-lab/pull/724) merged the
 CPU-probe fix at `3d3db7a64090682a62f220d73baef49709048c87`. Chord's original
 DSP, module.cpp and module.json blobs are unchanged between that candidate
-and the current pin. Pin PR #57 is still under validation; the release probe
-and identical gates remain unverified until the new pin is on main.
+and the current pin. Pin PR #57 merged at workshop `ed24cc8`; the fixed lab revision is now pinned.
+The release probe and identical gates must pass on the integrated PR head before merge.
 Hosted CI is the routine verification environment.

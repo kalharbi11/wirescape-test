@@ -46,13 +46,28 @@ and #497 for the additive maps and current-generation stopped Apply gate.
 
 ## MOD-7 override
 
-Base: lab commit `c083b26722b5b4d09e3285ab43f93e93be192f4f`. All six original folder files
-were copied before changing the descriptor. The only DSP source changes
+Original base: lab commit `c083b26722b5b4d09e3285ab43f93e93be192f4f` (PR #43).
+Integration base: lab commit `3d3db7a64090682a62f220d73baef49709048c87` (PIN-next #35).
+The full upstream DSP and new `data.h` from lab #545 are retained; relative to
+this new base, the only DSP source changes
 are the ten additions of `WS2_MODULATABLE`, preserving automation, stepping,
 IDs, defaults and the per-sample `edge(b,p,i)` read on channel zero. No state
 layout, event semantics, timing or allocation change. Existing double
 state: phase, internal/external samples-per-step and per-track gate age
 and cutoff retain the pin's precision for fractional timing.
+
+## Live pattern at the new pin
+
+Lab #545 adds the typed `pattern` data slot. The process borrows the live
+record for the current block and updates bounded derived flags on a serial
+change without copying the pattern or restarting the transport. The
+construction-time config remains the legacy fallback. The module's
+cross-field validator and upstream data schema are copied unchanged.
+Workshop regression coverage asserts the descriptor slot and uses the
+borrowed data to change pitch on the next step while retaining the
+effective sample-offset start control and running transport (1/16 channels).
+Existing state and modulation regressions remain intact. No new workshop
+DSP behavior beyond the ten flags is intended.
 
 ### Limitations
 

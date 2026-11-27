@@ -81,12 +81,34 @@ static void descriptor() {
     const auto* d = ws::Module<Seq>::descriptor();
     const char* ids[] = {"run","stop","reset","mute","t1_run","t1_stop","t1_mute","t2_run","t2_stop","t2_mute"};
     CHECK(d->param_count == 10 && d->input_count == 3 && d->output_count == 18);
+    CHECK(d->data_slot_count == 1 && d->data_slots != nullptr);
+    CHECK(std::strcmp(d->data_slots[0].id, "pattern") == 0);
+    CHECK(d->data_slots[0].bytes == sizeof(groove::LivePattern));
     for (uint32_t p = 0; p < 10; ++p) {
         const auto& x = d->params[p];
         CHECK(std::strcmp(x.id, ids[p]) == 0 && x.legacy_index == p);
         CHECK(x.flags == (WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE));
         CHECK(x.minimum == 0 && x.maximum == 1 && x.initial == 0 && x.step == 1);
     }
+}
+// The pin's live-pattern data must survive the flags-only workshop override.
+static void live_pattern_controls(uint32_t channels) {
+    Rig r(channels);
+    auto pattern = groove::materialize_legacy_pattern(r.pattern);
+    pattern.steps_1[0].key = pattern.steps_1[0].keys[0] = 72;
+    ws2_data view{sizeof(ws2_data), &pattern, sizeof(pattern), 1};
+    r.process.data_count = 1;
+    r.process.data = &view;
+    r.run();
+    r.pulse(0);
+    CHECK(r.seq.running && r.output[0][5] == 1.f && r.output[1][5] == 1.f);
+    // A new data serial changes the next step, without restarting the transport.
+    auto edited = pattern;
+    edited.steps_1[1].key = edited.steps_1[1].keys[0] = 48;
+    view.data = &edited;
+    view.serial = 2;
+    r.tick();
+    CHECK(r.seq.running && r.seq.step == 1 && r.output[0][8] == -1.f && r.output[1][8] == 1.f);
 }
 static void global_controls(uint32_t channels) {
     Rig r(channels);
@@ -181,6 +203,7 @@ static void state_roundtrip() {
 int main() {
     descriptor();
     for (uint32_t channels : {1u,16u}) {
+        live_pattern_controls(channels);
         global_controls(channels);
         track_controls(channels);
     }
