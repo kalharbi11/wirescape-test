@@ -1,4 +1,4 @@
 # Wirescape lab commit this repo builds against. Update deliberately, one PR per bump.
 repo=kalharbi11/wirescape-lab
-commit=c083b26722b5b4d09e3285ab43f93e93be192f4f
-pinned=2026-11-26
+commit=3d3db7a64090682a62f220d73baef49709048c87
+pinned=2026-11-27
