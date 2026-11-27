@@ -257,12 +257,38 @@ class Lab:
 
 # --------------------------------------------------------------------------- scratch tree (§2.3)
 
+def override_regression(m: Module) -> str | None:
+    """The reviewed direct-build overrides with module-local CMake regressions."""
+    if (m.kind == "override" and m.name in {"groove", "lfo"}
+            and (m.folder / "CMakeLists.txt").is_file()
+            and (m.folder / "tests.cpp").is_file()):
+        return f"abi2_{m.name}_tests"
+    return None
+
+
 def registration_edits(lab_dir: Path, modules: list[Module]) -> dict[str, str]:
-    """The only edits allowed in a scratch tree, keyed by lab path: three per new module, pre-MB2."""
+    """Allow only the engine CMake and, for new modules, existing catalogue edits."""
     new = [m for m in modules if m.kind == "new"]
-    if not new or not (lab_dir / CATALOG_INC).is_file():
+    if not (lab_dir / CATALOG_INC).is_file():
         return {}
+    cmake_lines = [f"add_subdirectory(../modules/{m.name} {m.name})" for m in new]
+    for m in modules:
+        target = override_regression(m)
+        if target:
+            cmake_lines.extend([f"if(NOT TARGET {target})",
+                                f"  add_subdirectory(../modules/{m.name} {m.name}_override_tests)",
+                                "endif()"])
+    if not cmake_lines:
+        return {}
+
+    def append(text: str, extra: list[str]) -> str:
+        nl = "\r\n" if "\r\n" in text else "\n"
+        return (text if text.endswith(nl) else text + nl) + nl.join(extra) + nl
+
     cmake = (lab_dir / ENGINE_CMAKE).read_text(encoding="utf-8")
+    edits = {ENGINE_CMAKE: append(cmake, cmake_lines)}
+    if not new:
+        return edits
     header = (lab_dir / CATALOG_H).read_text(encoding="utf-8")
     inc = (lab_dir / CATALOG_INC).read_text(encoding="utf-8")
     newline = "\r\n" if "\r\n" in header else "\n"
@@ -272,11 +298,8 @@ def registration_edits(lab_dir: Path, modules: list[Module]) -> dict[str, str]:
     if last is None:
         raise Refused(f"{CATALOG_H} has no module #include line to follow")
     lines[last + 1:last + 1] = [f'#include "../../modules/{m.name}/dsp.h"' for m in new]
-    def append(text: str, extra: list[str]) -> str:
-        nl = "\r\n" if "\r\n" in text else "\n"
-        return (text if text.endswith(nl) else text + nl) + nl.join(extra) + nl
     return {
-        ENGINE_CMAKE: append(cmake, [f"add_subdirectory(../modules/{m.name} {m.name})" for m in new]),
+        **edits,
         CATALOG_H: newline.join(lines),
         CATALOG_INC: append(inc, [f"WS_APP_MODULE({m.cls})" for m in new]),
     }
@@ -634,10 +657,14 @@ def ctest_names(build_dir: Path, config: str) -> list[str]:
 
 
 def module_tests(m: Module, names: list[str]) -> list[str]:
+    legacy = [n for n in names if n.startswith(m.name + "_") and n.endswith("_tests")]
+    required = override_regression(m)
+    if required:
+        return [required, *legacy]
     exact = f"abi2_{m.name}_tests"
     if exact in names:
         return [exact]
-    return [n for n in names if n.startswith(m.name + "_") and n.endswith("_tests")]
+    return legacy
 
 
 # --------------------------------------------------------------------------- steps
