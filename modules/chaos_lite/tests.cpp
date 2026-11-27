@@ -463,9 +463,62 @@ static void mod9_stepped_streams() {
     }
 }
 
+
+struct Mod9Cv {
+    static constexpr ws::Info info{"test.chaos_lite_mod9_cv", "Stepped CV", 1};
+    static constexpr std::array<ws2_port, 0> inputs{};
+    static constexpr std::array outputs{ws::port("cv", "CV", WS2_CV_BI)};
+    static constexpr std::array<ws2_param, 0> params{};
+    void prepare(const ws::Setup&) {}
+    void reset() {}
+    void process(ws::Block& b) {
+        b.out(0).set_channels(1);
+        b.out(0).mark_constant(false);
+        for (uint32_t i = 0; i < b.frames(); ++i)
+            b.out(0).ch(0)[i] = b.frame_position() + i >= 128 ? 1.f : 0.f;
+    }
+};
+static void mod9_engine_cables() {
+    using namespace wirescape::engine2;
+    for (uint32_t slot : {3u, 4u, 9u, 22u, 26u}) {
+        Config cfg; cfg.max_block = 128; cfg.seed = 42;
+        Engine modulated(cfg), plain(cfg);
+        for (Engine* e : {&modulated, &plain}) {
+            REQUIRE(e->add_node(1, ws::Module<Mod9Cv>::descriptor()));
+            REQUIRE(e->add_node(2, ws::Module<chaos_lite::ChaosLite>::descriptor()));
+            REQUIRE(e->set_parameter(2, 20, 12.f));
+            REQUIRE(e->set_parameter(2, 21, 1.f));
+            REQUIRE(e->set_parameter(2, 23, 0.f));
+            REQUIRE(e->output(2, 0, 0) && e->output(2, 1, 1));
+        }
+        REQUIRE(modulated.modulate(1, 0, 2, slot, 1.f));
+        REQUIRE(modulated.prepare() && plain.prepare());
+        float a[2][128]{}, b[2][128]{};
+        float* ar[]{a[0], a[1]}; float* br[]{b[0], b[1]};
+        bool changed = false;
+        for (uint32_t block = 0; block < 8; ++block) {
+            {
+                allocation_watch::Scope watch;
+                REQUIRE(modulated.render(ar, 2, 128) == WS2_OK);
+                REQUIRE(plain.render(br, 2, 128) == WS2_OK);
+                REQUIRE(watch.allocations() == 0);
+            }
+            for (uint32_t side = 0; side < 2; ++side) for (uint32_t i = 0; i < 128; ++i) {
+                const float x = a[side][i], y = b[side][i];
+                REQUIRE(std::isfinite(x) && std::abs(x) <= .8912509f);
+                if (block == 0) REQUIRE(x == y);
+                else changed = changed || x != y;
+            }
+        }
+        REQUIRE(changed);
+        REQUIRE(modulated.meter().faults == 0 && plain.meter().faults == 0);
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc == 2 && std::string(argv[1]) == "--benchmark") return benchmark();
     mod9_stepped_streams();
+    mod9_engine_cables();
     matrix();
     state_and_extremes();
     components();

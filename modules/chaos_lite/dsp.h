@@ -13,7 +13,7 @@ struct ChaosLite {
     static constexpr std::array outputs{
         ws::port("left", "Left", WS2_AUDIO, WS2_POLY, 0, "stereo"),
         ws::port("right", "Right", WS2_AUDIO, WS2_POLY, 0, "stereo")};
-    static constexpr uint32_t stepped = WS2_STEPPED | WS2_AUTOMATABLE;
+    static constexpr uint32_t stepped = WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE;
     static constexpr std::array params{
         ws::param("shape_a", "A shape", 0, 2, .4f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 0),
         ws::param("shape_b", "B shape", 0, 2, 1.6f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 1, 4, 0),

@@ -50,3 +50,34 @@ Only generator/instability state is serialized. Delay lines and filter memory ar
 cleared on load; this intentional patch-state policy means no continuation-equivalence
 claim for resonator tails. Reset determinism and state-byte restoration are tested.
 No constant flag is set on running audio, including silent capped channels.
+
+## MOD-9 read-site audit
+
+Override base: lab `3d3db7a64090682a62f220d73baef49709048c87` (LAB_PIN). The shared
+`stepped` mask in dsp.h is the sole production change; all five slots retain
+STEPPED and AUTOMATABLE and gain MODULATABLE. No audio-rate/per-voice capability
+flags are added. The existing effective stream is read per sample for each active voice.
+
+| Parameter | Existing read in dsp.h | Decision |
+|---|---|---|
+| octave_a (3) | process: rounded p(3) in fa | Modulate; bounded exponent/frequency, no allocation or reset. |
+| octave_b (4) | process: rounded p(4) in fb | Modulate; same bounded pitch arithmetic, independent oscillator. |
+| route (9) | process: rounded/clamped p(9), per side | Modulate; Coupler::process selects arithmetic over a delay allocated in prepare; cursor/history advance in every mode. |
+| lfo_target (22) | process: rounded/clamped p(22), selects mod in fa/tune/coefficient | Modulate; selects existing arithmetic, no topology or allocation changes. |
+| lfo_shape (26) | process: rounded/clamped p(26) before waveform selection | Modulate; fixed voice RNG and 10 ms transition state already handle shape switches. |
+
+None of these controls is structural. No new state, double state, ports, parameters,
+reset path or sample computation. Existing eight-voice cap, 16-channel silence above
+cap, v1/v2 patch-state compatibility and intentional history clearing stay unchanged.
+Tests assert exact masks, 1/16-channel effective streams versus a scalar per-frame
+oracle, changes relative to unmodulated output, state-byte restoration, bounded finite
+PCM and zero callback allocations; graph tests check actual engine modulation cables.
+All original matrix, alias, state and component tests remain.
+
+## Limitations
+
+- [LR-7](../../LAB_REQUESTS.md): the pinned offline evidence checker requires equal
+  output channels. The default identity demo mixes the module's stereo outputs at
+  0.5 each and duplicates the mono result to both render buses. Native tests check
+  both original stereo channels independently; the demo is not a stereo identity proof.
+- No new lab gaps. Eight active voices maximum is existing behavior, not a new limit.

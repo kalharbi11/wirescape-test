@@ -45,3 +45,21 @@ rejected without changing the current state. Jitter advances on an internal fixe
 
 `abi2_chaos_lite_tests --benchmark` measures a real engine graph with two instances ×
 four voices, 48 kHz/128, 10,000 timed blocks after warmup, without opening a device.
+
+## MOD-9 stepped modulation
+
+The existing integer-step controls now accept modulation, with no changes to IDs,
+slots, defaults, ranges or DSP cadence:
+
+| ID | Slot | Range | Default | Meaning |
+|---|---:|---|---:|---|
+| `octave_a` | 3 | -3..3 oct | 0 | Oscillator A octave |
+| `octave_b` | 4 | -3..3 oct | -1 | Oscillator B octave |
+| `route` | 9 | 0..2 | 0 | Direct / Multiply / Delay |
+| `lfo_target` | 22 | 0..2 | 0 | A pitch / body tuning / filter cutoff |
+| `lfo_shape` | 26 | 0..3 | 0 | Sine / triangle / sample & hold / smooth random |
+
+All are STEPPED, AUTOMATABLE and MODULATABLE; none is structural. The existing
+10 ms LFO waveform transition remains. State v2 preserves random LFO state and
+transition progress; legacy v1 remains readable. Default offline demo sums both
+stereo outputs to mono for the pinned render evidence checker (LR-7).
