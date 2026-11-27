@@ -432,9 +432,48 @@ void test_mod9_engine_cables() {
     }
 }
 
+
+void test_mod9_stateless_contract() {
+    // The pinned SDK explicitly reports WS2_UNSUPPORTED for modules without
+    // custom state. Patch parameters are host-owned; no filter/fade history
+    // is serialized. A fresh instance with restored parameter values must
+    // match reset of the original instance.
+    for (uint32_t voices : {1u, 16u}) {
+        Rig original({48000., voices}), restored({48000., voices});
+        original.values[0] = .6f;
+        original.values[4] = 1.f;
+        original.values[6] = 1.f;
+        original.values[8] = .7f;
+        original.connect(0);
+        restored.connect(0);
+        for (uint32_t c = 0; c < voices; ++c) {
+            original.data->input[0][c][0] = .25f;
+            restored.data->input[0][c][0] = .25f;
+        }
+        for (int n = 0; n < 4; ++n) original.run(kFrames);
+        Bytes bytes{};
+        ws2_writer writer{sizeof(writer), &bytes, sink};
+        REQUIRE(original.descriptor->save_state(original.state, &writer) == WS2_UNSUPPORTED);
+        REQUIRE(bytes.size() == 0);
+        Source src{&bytes, 0};
+        ws2_reader reader{sizeof(reader), &src, uint32_t(bytes.size())};
+        REQUIRE(restored.descriptor->load_state(restored.state, &reader) == WS2_UNSUPPORTED);
+        REQUIRE(src.pos == 0);
+        std::copy(std::begin(original.values), std::end(original.values), std::begin(restored.values));
+        original.descriptor->reset(original.state);
+        original.run(kFrames);
+        restored.run(kFrames);
+        for (uint32_t c = 0; c < voices; ++c)
+            for (uint32_t p = 0; p < 5; ++p)
+                for (uint32_t i = 0; i < kFrames; ++i)
+                    REQUIRE(original.sample(p, c, i) == restored.sample(p, c, i));
+    }
+}
+
 } // namespace
 
 int main() {
+    test_mod9_stateless_contract();
     test_mod9_modes();
     test_mod9_engine_cables();
     test_legacy_slots();

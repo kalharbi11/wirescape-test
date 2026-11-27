@@ -14,7 +14,11 @@ Module ID: `essentials.quad_vca` (ABI 2, version 1). Original four-channel, poly
 | Parameter | Range | Default | Meaning |
 |---|---|---|---|
 | `level1`…`level4` | 0–1 | 1 | per-voice, modulatable gain; multiplied by `cvN` |
-| `mode1`…`mode4` | 0 or 1 | 0 | 0 = VCA, 1 = LPG |
+| `mode1`…`mode4` | 0 or 1 | 0 | 0 = VCA, 1 = LPG; stepped, modulatable |
 | `response` | 0–1 | 0.4 | LPG release, exponential from 60 ms to 1.5 s |
 
 VCA output = input × clamp(level × CV, 0, 1). LPG: a 2 ms attack/60–1500 ms release follower controls amplitude and the cutoff of a two-pole low-pass filter, from about 40 Hz to min(18 kHz, 0.45 × sample rate), with Q about 0.6. A single source at `in1` fans out to all four channels; connect four distinct envelopes to `cv1`…`cv4` to animate them independently. The host sets the voice count from the widest patched input (maximum 16); mono signals broadcast. Reset clears all follower/filter state. No state is saved beyond the patch's parameters.
+
+## Batch B mode modulation
+
+`mode1`–`mode4` accept modulation cables independently. They remain shared (not per-voice) stepped controls with the original defaults, and the existing 10 ms per-voice crossfade reads effective values at sample cadence when varying. Constant mode inputs use the existing settled VCA/LPG fast paths. The VCA/LPG filter/fade histories are not serialized; parameters remain part of the patch. No new continuous-parameter flags or DSP changes.

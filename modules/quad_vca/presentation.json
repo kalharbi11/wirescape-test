@@ -181,7 +181,7 @@
       "taper": "linear",
       "step": 1,
       "decimals": 3,
-      "modulatable": false,
+      "modulatable": true,
       "choices": [
         {
           "value": 0,
@@ -203,7 +203,7 @@
       "taper": "linear",
       "step": 1,
       "decimals": 3,
-      "modulatable": false,
+      "modulatable": true,
       "choices": [
         {
           "value": 0,
@@ -225,7 +225,7 @@
       "taper": "linear",
       "step": 1,
       "decimals": 3,
-      "modulatable": false,
+      "modulatable": true,
       "choices": [
         {
           "value": 0,
@@ -247,7 +247,7 @@
       "taper": "linear",
       "step": 1,
       "decimals": 3,
-      "modulatable": false,
+      "modulatable": true,
       "choices": [
         {
           "value": 0,

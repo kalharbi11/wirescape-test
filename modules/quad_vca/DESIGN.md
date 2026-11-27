@@ -29,3 +29,22 @@ head peak at least 20 dB lower (or the applicable early-met threshold), with the
 other T7.0 `parameter_steps` rows unchanged within the contract tolerance.
 **After** measurements, three-platform Golden, Ir and D5 evidence must be recorded
 from exact CI/artifact source pins; this code change does not assert those gates.
+
+## MOD-9 batch B (#64)
+
+Base: lab `3d3db7a64090682a62f220d73baef49709048c87` (LAB_PIN). Original six module files copied byte for byte before tests. The only production change is the shared `kMode` descriptor mask, adding `WS2_MODULATABLE` to the existing `WS2_STEPPED | WS2_AUTOMATABLE` bits. No IDs, legacy slots, ranges, defaults, ports, DSP, or state-format changes.
+
+| Parameter | Read-site decision |
+|---|---|
+| `mode1` | `k=0`: frame-zero prime, constant-path selection and dynamic per-sample `param(4)` read. Fixed follower/filter/fade state, no allocation or structural changes. Enable modulation. |
+| `mode2` | `k=1`: identical cadence at `param(5)` for channel 2's independent state. Enable modulation. |
+| `mode3` | `k=2`: identical cadence at `param(6)` for channel 3's independent state. Enable modulation. |
+| `mode4` | `k=3`: identical cadence at `param(7)` for channel 4's independent state. Enable modulation. |
+
+The constant-output check also reads each mode and disables the shortcut during LPG or an unfinished fade. For nonconstant mode signals the dynamic branch reads each sample; the first-frame priming behavior is unchanged. State is four fixed arrays of 16 voices plus coefficient tables prepared off-thread; no new allocations, locks, I/O, exceptions, logging, or double state. `level1`–`level4` and `response` keep their original flags. No mode is excluded. The SDK state callbacks return `WS2_UNSUPPORTED` for this stateless module; patch parameters are host-owned and reset clears history.
+
+Tests assert all nine flag masks, compare a mid-block effective mode stream to one-frame processing for each mode and 1/16 voices, check neighboring channels, return to exact VCA, reset and no allocations, and connect actual engine modulation cables for all four controls. Stateless contract tests check unsupported save/load, no bytes, and matching fresh-instance versus reset output when host-owned values are restored. The offline default VCA note/envelope demo is an unmodulated identity witness.
+
+## Limitations
+
+No new lab-facing gap identified. Demo uses offline Notes events, no audio or MIDI devices. No custom state payload; no new state serialization. Owner-requested T2 only.
