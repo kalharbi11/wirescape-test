@@ -170,6 +170,11 @@ struct Rig {
         }
         REQUIRE(allocations == 0);
     }
+    void reset_checked() {
+        allocation_watch::Scope watch;
+        d->reset(state);
+        REQUIRE(watch.allocations() == 0);
+    }
     void run_seconds(double seconds, uint32_t block = 128, uint32_t host_channels = 1) {
         run(uint64_t(seconds * cfg.sample_rate), block, host_channels);
     }
@@ -436,6 +441,129 @@ void channels() {
     REQUIRE(a.L != b.L);
 }
 
+// A polyphonic texture cable must not drive a different channel's post-grit.
+// Use the same topology (16 channels) in both the baseline and modulated renders.
+void post_grit_channels() {
+    auto settings = [](Rig &r) {
+        r.set(g::grit_after, 1.f);
+        r.set_channel(g::growl, 0, 0.f);
+        r.set(g::wet, .35f);
+    };
+    auto ch0 = [&](Rig &r) { settings(r); r.set_channel(g::growl, 0, 1.f); };
+    auto ch3 = [&](Rig &r) { settings(r); r.set_channel(g::growl, 3, 1.f); };
+    const auto on0 = render_note(0, 16, settings), on3 = render_note(3, 16, settings);
+    REQUIRE(same(on0, on3));
+    REQUIRE(same(render_note(3, 16, ch0), on3));
+    REQUIRE(!same(render_note(3, 16, ch3), on3));
+    REQUIRE(same(render_note(0, 16, ch3), on0));
+    REQUIRE(!same(render_note(0, 16, ch0), on0));
+
+    // Both channels actually sing; changing either channel changes the mix.
+    Rig a, b, c;
+    settings(a); ch0(b); ch3(c);
+    for (Rig *r : {&a, &b, &c}) {
+        r->at(0, note(WS2_NOTE_ON, 48, 0, 1));
+        r->at(37, note(WS2_NOTE_ON, 55, 3, 2));
+        r->run(24000, 17, 16);
+        REQUIRE(r->dsp().held_notes() == 2 && finite(r->L) && finite(r->R));
+    }
+    REQUIRE(!same(a.L, b.L) && !same(a.L, c.L));
+    // Mono texture signals retain the shared-bus mode, regardless of note channel.
+    auto mono = [](Rig &r) { r.set(g::grit_after, 1.f); r.set(g::growl, .8f); };
+    REQUIRE(same(render_note(0, 1, mono), render_note(3, 16, mono)));
+}
+
+// The idle bus must forget low-mid guard history, and a restart must not
+// depend on how a host partitions the silent interval.
+void idle_restart() {
+    {
+        Rig r;
+        auto &x = *r.dsp().core;
+        x.lmCut = 5.; x.lmC = .4; x.lmCStep = .001; x.lmRatio = 22.;
+        x.clear_bus();
+        REQUIRE(x.lmCut == 0 && x.lmC == 0 && x.lmCStep == 0 && x.lmRatio == 0);
+    }
+    std::vector<float> reference_l, reference_r;
+    for (uint32_t block : {512u, 128u, 17u, 1u}) {
+        Rig r;
+        r.set(g::throats, 1.f);
+        r.set(g::release, 20.f);
+        r.set(g::decay, .3f);
+        r.set(g::wet, .2f);
+        r.at(37, note(WS2_NOTE_ON, 45));
+        r.run(24000, block);
+        REQUIRE(r.dsp().active_throats() == 1 && peak(r.L) > .01f);
+        // Stress a nonzero guard state at the same absolute frame in each run.
+        r.dsp().core->lmCut = 5.;
+        r.dsp().core->lmC = .4;
+        r.at(r.position, note(WS2_NOTE_OFF, 45));
+        r.run(192000, block);
+        REQUIRE(r.dsp().core->busIdle && r.dsp().live_notes() == 0);
+        REQUIRE(peak(r.L, r.L.size() - 48000) == 0);
+        r.at(r.position + 37, note(WS2_NOTE_ON, 52));
+        r.run(12000, block);
+        REQUIRE(peak(r.L, r.L.size() - 12000) > .01f && finite(r.L) && finite(r.R));
+        if (reference_l.empty()) { reference_l = r.L; reference_r = r.R; }
+        else { REQUIRE(same(reference_l, r.L)); REQUIRE(same(reference_r, r.R)); }
+    }
+}
+
+void note_identity_edges() {
+    Rig r;
+    r.set(g::throats, 1.f);
+    r.set(g::release, 20.f);
+    r.set(g::decay, .3f);
+    r.at(0, note(WS2_NOTE_ON, 48, 1, 42, 1));
+    r.at(0, note(WS2_NOTE_ON, 55, 2, 42, 2));
+    r.run(512);
+    r.at(r.position, note(WS2_NOTE_OFF, 70, 9, 42, 1)); // ID wins over key/channel.
+    r.run(128);
+    REQUIRE(r.dsp().find(1, 42)->released && !r.dsp().find(2, 42)->released);
+    auto older = anonymous(WS2_NOTE_ON, 60, 3);
+    auto newer = older;
+    r.at(r.position, older);
+    r.at(r.position + 128, newer);
+    r.run(512);
+    auto wrong = anonymous(WS2_NOTE_OFF, 60, 3); wrong.source_id = 99;
+    r.at(r.position, wrong);
+    r.at(r.position, anonymous(WS2_NOTE_OFF, 61, 3));
+    r.run(128);
+    REQUIRE(r.dsp().held_notes() == 3);
+    r.at(r.position, anonymous(WS2_NOTE_OFF, 60, 3));
+    r.run(128);
+    const auto &notes = r.dsp().core->notes;
+    uint64_t held = 0, released = 0;
+    for (const auto &n : notes) if (n.id && n.note_id < 0 && n.key == 60) {
+        if (n.released) released = n.seq; else held = n.seq;
+    }
+    REQUIRE(held && released > held);
+    auto key_choke = choke(1, -1, 3); key_choke.key = 60;
+    r.at(r.position, key_choke);
+    r.run(384);
+    REQUIRE(r.dsp().held_notes() == 1 && r.dsp().has_note(2, 42));
+    r.at(r.position, choke(1)); // source-only, source 2 survives.
+    r.run(384);
+    REQUIRE(r.dsp().held_notes() == 1 && r.dsp().has_note(2, 42));
+    r.at(r.position, choke(2));
+    r.run_seconds(4.);
+    REQUIRE(r.dsp().live_notes() == 0 && r.dsp().active_throats() == 0 && r.dsp().core->busIdle);
+
+    for (bool kill : {false, true}) {
+        Rig s;
+        s.set(g::throats, 1.f);
+        s.set(g::release, 20.f);
+        s.set(g::decay, .3f);
+        for (int i = 0; i < 16; ++i) s.at(0, note(WS2_NOTE_ON, 40+i, i, 100+i, 1));
+        s.run(1024);
+        s.at(1029, note(WS2_NOTE_ON, 70, 3, 500, 2));
+        s.at(1030, kill ? choke(2, 500) : note(WS2_NOTE_OFF, 70, 3, 500, 2));
+        s.at(1031, choke(1));
+        s.run_seconds(4.);
+        REQUIRE(s.dsp().live_notes() == 0 && s.dsp().active_throats() == 0 && s.dsp().core->busIdle);
+        REQUIRE(peak(s.L, s.L.size()-48000) == 0 && peak(s.R, s.R.size()-48000) == 0);
+    }
+}
+
 void determinism() {
     auto render = [](uint64_t seed, bool reset_first) {
         Rig rig(48000, seed);
@@ -443,7 +571,7 @@ void determinism() {
             rig.at(0, note(WS2_NOTE_ON, 47));
             rig.set(g::growl, .6f);
             rig.run(20000);
-            rig.d->reset(rig.state);
+            rig.reset_checked();
             rig.schedule.clear();
             rig.set(g::growl, 0.f);
             rig.L.clear();
@@ -497,7 +625,7 @@ void reset_silences() {
     rig.at(0, note(WS2_NOTE_ON, 45));
     rig.run(24000);
     REQUIRE(peak(rig.L, 12000) > .01f);
-    rig.d->reset(rig.state);
+    rig.reset_checked();
     rig.L.clear();
     rig.R.clear();
     rig.schedule.clear();
@@ -546,6 +674,9 @@ int main() {
     seventeen_notes();
     block_sizes();
     channels();
+    post_grit_channels();
+    idle_restart();
+    note_identity_edges();
     determinism();
     extremes();
     reset_silences();
