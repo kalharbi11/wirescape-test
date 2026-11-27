@@ -538,12 +538,110 @@ static void coordinator_poly_soak(uint32_t seconds, bool paced) {
         static_cast<unsigned long long>(releases), static_cast<unsigned long long>(allocations),
         static_cast<unsigned long long>(meter.faults), peak);
 }
+
+struct PerformanceCv {
+    static constexpr ws::Info info{"test.midi_performance_cv", "Performance CV", 1};
+    static constexpr std::array<ws2_port, 0> inputs{};
+    static constexpr std::array outputs{ws::port("sustain", "Sustain", WS2_CV_BI),
+                                        ws::port("range", "Range", WS2_CV_BI),
+                                        ws::port("apply", "Apply", WS2_CV_BI)};
+    static constexpr std::array<ws2_param, 0> params{};
+    void prepare(const ws::Setup&) {}
+    void reset() {}
+    void process(ws::Block& b) {
+        for (uint32_t p = 0; p < 3; ++p) {
+            b.out(p).set_channels(1);
+            b.out(p).mark_constant(false);
+        }
+        for (uint32_t i = 0; i < b.frames(); ++i) {
+            b.out(0).ch(0)[i] = b.frame_position() + i >= 160 ? -1.f : 0.f;
+            b.out(1).ch(0)[i] = i >= 64 ? 1.f : 0.f;
+            b.out(2).ch(0)[i] = i >= 96 ? -1.f : 0.f;
+        }
+    }
+};
+static void performance_modulation() {
+    const auto* d = ws::Module<MidiToCv>::descriptor();
+    REQUIRE(d->param_count == 9);
+    for (uint32_t p = 0; p < d->param_count; ++p) {
+        const bool mod = p >= 5 && p <= 7;
+        REQUIRE(d->params[p].flags == (WS2_STEPPED | WS2_AUTOMATABLE |
+                                       (mod ? WS2_MODULATABLE : 0)));
+    }
+    for (uint32_t voices : {1u, 16u}) {
+        engine2::Config cfg;
+        cfg.max_block = 128;
+        engine2::Engine e(cfg);
+        const auto producer = uint32_t(e.register_producer());
+        REQUIRE(e.add_node(1, ws::Module<MidiIn>::descriptor()));
+        REQUIRE(e.add_node(2, d));
+        REQUIRE(e.add_node(3, ws::Module<PerformanceCv>::descriptor()));
+        REQUIRE(e.connect(1, 0, 2, 0));
+        REQUIRE(e.set_parameter(2, 0, float(voices)));
+        for (uint32_t p : {0u, 1u, 2u, 3u, 4u, 8u})
+            REQUIRE(!e.modulate(3, 0, 2, p, 1.f));
+        REQUIRE(e.modulate(3, 0, 2, 5, 1.f));
+        REQUIRE(e.modulate(3, 1, 2, 6, 1.f));
+        REQUIRE(e.modulate(3, 2, 2, 7, 1.f));
+        REQUIRE(e.output(2, 0, 0) && e.prepare());
+        auto send = [&](ws2_event event) {
+            REQUIRE(e.enqueue(producer, 1, WS2_DIRECT_PORT, event, event.offset) == WS2_OK);
+        };
+        for (uint32_t c = 0; c < voices; ++c)
+            send(midi1(0x90, uint8_t(60 + c), 127));
+        send(midi1(0xe0, 127, 127, 1));
+        send(midi1(0xb0, 64, 127, 2));
+        for (uint32_t c = 0; c < voices; ++c)
+            send(midi1(0x80, uint8_t(60 + c), 0, 3));
+        float samples[128]{};
+        float* rows[]{samples};
+        auto render = [&] {
+            allocation_watch::Scope watch;
+            REQUIRE(e.render(rows, 1, 128) == WS2_OK);
+            REQUIRE(watch.allocations() == 0);
+        };
+        render(); // Event/trigger path: full bend and held sustain.
+        REQUIRE(e.output_channels(2, 0) == voices);
+        auto check_pitch = [&] {
+            for (uint32_t c = 0; c < voices; ++c)
+                for (uint32_t i = 4; i < 128; ++i) {
+                    const float expected = float(c) / 12.f +
+                        (i < 64 ? 2.f / 12.f : i < 96 ? 4.f : 0.f);
+                    REQUIRE(std::abs(e.output_sample(2, 0, c, i) - expected) < 1.e-6f);
+                    REQUIRE(e.output_sample(2, 5, c, i) == 1.f);
+                }
+        };
+        check_pitch();
+        engine2::Outgoing event;
+        while (e.pop_egress(event)) {}
+        render(); // Idle path: midblock sustain CV change must not release early.
+        check_pitch();
+        for (uint32_t c = 0; c < voices; ++c)
+            for (uint32_t i = 0; i < 128; ++i)
+                REQUIRE(e.output_sample(2, 1, c, i) == 1.f);
+        while (e.pop_egress(event))
+            REQUIRE(event.node != 2 || event.port != 7);
+        render(); // Next block samples sustain low and releases held notes at zero.
+        for (uint32_t c = 0; c < voices; ++c)
+            for (uint32_t i = 0; i < 128; ++i)
+                REQUIRE(e.output_sample(2, 1, c, i) == 0.f);
+        uint32_t releases = 0;
+        while (e.pop_egress(event))
+            if (event.node == 2 && event.port == 7) {
+                REQUIRE(event.event.type == WS2_NOTE_OFF && event.event.offset == 0);
+                ++releases;
+            }
+        REQUIRE(releases == voices && e.meter().faults == 0);
+    }
+}
+
 int main(int argc, char **argv) {
     if (argc == 2 && std::strcmp(argv[1], "--soak") == 0) {
         coordinator_poly_soak(60, true);
         return 0;
     }
     REQUIRE(argc == 1);
+    performance_modulation();
     coordinator_poly_soak(1, false);
     full_endpoint_channel_matrix();
     metadata_contract();
