@@ -63,9 +63,11 @@ The runtime adapter parses off the render thread. Stopping this module
 does **not** authorize mutating a graph whose render callback is active.
 The G3 native authoritative STOP/playhead observation is appended as
 ports 10–17 and routed through the current-generation telemetry snapshot;
-the G2 editor is separate application work. No live-edit, seamless Apply or physical listening is claimed.
+the G2 editor is separate application work. The stopped workflow below describes the legacy configuration path.
+The integration base also supports typed live pattern data (see below). Physical
+listening acceptance is not claimed.
 
-## Stopped configuration workflow (manual S0 / S1 UI contract)
+## Legacy stopped configuration workflow (manual S0 / S1 UI contract)
 
 **Confirm global sequencer STOP has completed**, not merely been requested
 or queued. Edit an **authored draft** `module.config` while stopped; never
@@ -83,7 +85,15 @@ Version-1 transient layout is accepted and upgraded with length32/full gate;
 module-state version 2 saves loop/RNG counters and version-1 state defaults them
 to loop 1 and the deterministic seed. The patch format remains JSON, and a
 v1-authored patch does not gain v2-only fields on load.
-Live per-step DSP editing remains deferred to S2.
+## Live pattern data (lab #545; PIN-next)
+
+The new pin exposes the typed `pattern` data slot (track lengths, row counts,
+tempo source and bounded step arrays). The host migrates legacy config to
+live data and validates edits off the render thread. The DSP borrows the
+current block's record and observes serial changes without restarting the
+transport. Construction-time config remains the fallback for legacy direct
+callers. The workshop override preserves this upstream implementation and
+changes only the ten modulation flags described below.
 
 ## MOD-7 — effective modulation (0024 §4.6)
 
