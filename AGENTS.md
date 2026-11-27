@@ -9,6 +9,18 @@ any agent merges with T0 and T1 green.
 **Mandatory reading:** this file, `README.md`, your task issue, and the module's spec (0024 §4 or the
 issue). Open other lab files only for a specific fact.
 
+
+## Active owner hold and task pool (2026-11-27)
+
+Read [TASKS.md](TASKS.md) before starting. It records the current owner hold and lettered bundles;
+its temporary hold overrides the routine lab-pin schedule below. GUTTR's active build owns
+`modules/guttr/**`. Other tasks must not touch it. Tools/workflows use one PR at a time after #19
+(now merged); every new tools branch starts from eligible main. No pin bump before #18 merges and
+the GUTTR PR is open; validate every module including GUTTR. No lab PRs; lab remains on hold
+(the owner's #708 exception is outside this queue). T2 remains owner-requested only.
+No permanent agent assignments in repository docs. Module bundles share only their index rows;
+keep both rows on conflict. Separate sessions use separate checkouts/build trees.
+
 ## Keep always
 1. **Only module folders, the harness and docs live here.** Paths: `modules/**`, `tools/**`,
    `.github/workflows/**`, `LAB_PIN` and the top-level docs.
