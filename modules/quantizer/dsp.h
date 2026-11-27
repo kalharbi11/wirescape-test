@@ -8,9 +8,9 @@ namespace quantizer {
 // Pitch classes (0..11) of a scale as a bit mask, built from semitone intervals above the root.
 template <int... Semitones> constexpr uint16_t scale_bits() { return static_cast<uint16_t>(((1u << Semitones) | ...)); }
 
-// A stepped switch: no host smoothing, integer values, no cable modulation.
+// A stepped switch: no host smoothing, integer values, cable modulation is allowed.
 constexpr ws2_param stepped(const char *id, const char *name, float lo, float hi, float def, uint32_t slot) {
-    return ws::param(id, name, lo, hi, def, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, slot, 4, 1);
+    return ws::param(id, name, lo, hi, def, "", WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE, WS2_LINEAR, slot, 4, 1);
 }
 
 struct Quantizer {

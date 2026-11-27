@@ -8,7 +8,7 @@ Snaps a pitch to the nearest note of a scale and says when the note changes. Pit
 | in | `trigger` | Trigger | poly (a mono cable broadcasts). Connected: each voice samples the pitch on its rising edge (Schmitt 0.5/0.25) and holds. Unconnected: continuous |
 | out | `pitch` | Pitch | quantized, poly. An allowed note is exactly `(midi - 60) / 12` |
 | out | `changed` | Changed | 1 ms trigger (`ws::Trigger`) on the frame a voice's output note changes |
-## Parameters (all stepped)
+## Parameters (all stepped, automatable and modulatable)
 | ID | Name | Range | Default |
 |---|---|---|---|
 | `scale` | Scale | 0..13: Chromatic, Major, Natural minor, Harmonic minor, Dorian, Phrygian, Lydian, Mixolydian, Locrian, Major pentatonic, Minor pentatonic, Blues, Whole tone, Custom | 1 |
@@ -20,7 +20,7 @@ Snaps a pitch to the nearest note of a scale and says when the note changes. Pit
 - Nearest allowed note, ties go down. The held note stays until the input is 0.1 semitone past the midpoint to the next allowed note.
 - Custom with no notes on passes Chromatic.
 - `shift` walks scale degrees and wraps into the next octave (+1 on the top degree gives the root an octave up).
-- The first sample of a voice (and the first after reset) takes a note without firing `changed`. With a trigger connected, a voice holds its first note until the first edge. Changing `scale`, `root`, `shift` or `octave` changes the output at the next sample (or next trigger edge) and fires `changed` if the note differs.
+- The first sample of a voice (and the first after reset) takes a note without firing `changed`. With a trigger connected, a voice holds its first note until the first edge. Effective values of all 16 parameters are read at frame 0 of each process block, shared by all voices. A modulation change later in the block is not read until the next block. Continuous pitch updates with that configuration; with a trigger connected, the next sampling edge uses it and fires `changed` only if the output note differs.
 - No saved state: held notes reset on reset and load (`save_state` reports unsupported).
 - CONSTANT pitch output when the pitch (and a connected trigger) is constant; `changed` is constant 0 when no pulse is running.
 Tests: `abi2_quantizer_tests`.
