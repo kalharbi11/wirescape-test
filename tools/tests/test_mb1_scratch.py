@@ -68,6 +68,42 @@ ids = sorted(m["id"] for m in d["modules"])
         with self.assertRaises(wstest.Refused):
             wstest.verify_scratch(scratch, tree)
 
+    def test_a106_override_inventory_is_byte_identical(self):
+        from test_wstest import module
+        folder = module(self.root / "modules/existing", "existing::Existing")
+        override = wstest.Module("existing", folder, "override")
+        self.assertEqual(wstest.bench_inventory(self.lab.dir, [override]),
+                         self.inventory.encode("utf-8"))
+
+    def test_a106_append_preserves_existing_inventory_bytes(self):
+        source = self.lab.dir / "bench/module_sets.json"
+        original = self.inventory.replace('[]', '[ "old.id" ]')
+        write(source, original)
+        m = self.thing({"id": "test.thing"})
+        result = wstest.bench_inventory(self.lab.dir, [m]).decode("utf-8")
+        self.assertEqual(result, original.replace('"old.id"', '"old.id", "test.thing"'))
+
+    def test_a106_generator_known_ids_must_match_descriptor(self):
+        m = self.thing({"id": "test.thing"})
+        real_run = wstest.run
+
+        def run(cmd, *args, **kwargs):
+            if Path(cmd[0]).name == "wire-describe" + wstest.EXE:
+                import subprocess
+                return subprocess.CompletedProcess(cmd, 0, json.dumps(
+                    {"modules": [{"id": "essentials.existing"}, {"id": "test.thing"}]}), "")
+            return real_run(cmd, *args, **kwargs)
+
+        def corrupt(dest, describe):
+            write(dest / "tools/foundation/fixtures/known_module_ids.txt", "not the descriptor\n")
+            return b"[]\n"
+
+        with patch.object(wstest, "cmake_build", side_effect=self.fake_build), \
+             patch.object(wstest, "run", side_effect=run), \
+             patch.object(wstest, "run_ui_generator", side_effect=corrupt):
+            with self.assertRaisesRegex(wstest.Refused, "does not match scratch wire-describe"):
+                wstest.prepare_tree(self.lab, self.root / "build/scratch", [m])
+
     def test_a106_missing_target_fails_closed(self):
         m = self.thing({"id": "test.thing"})
         with patch.object(wstest, "cmake_build", return_value=(False, "missing wire-describe target")):
