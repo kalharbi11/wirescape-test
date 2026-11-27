@@ -34,6 +34,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -48,6 +49,9 @@ ENGINE_CMAKE = "engine/CMakeLists.txt"
 SIDECAR = "apps/studio/public/catalogue-presentation.json"
 UI_CATALOGUE = "apps/studio/public/wirescape_modules.json"
 UI_GENERATOR = "tools/gen_ui_catalogue.py"
+MB1_WITNESS = "tools/mb1/test_wire_describe.py"
+KNOWN_IDS = "tools/foundation/fixtures/known_module_ids.txt"
+BENCH_SETS = "bench/module_sets.json"
 S0_FIXTURE = "host/sidecar/testdata/s0_catalogue.ndjson"
 PANELS_DIR = "apps/studio/public/panels"
 PANEL_FILE = "panel.json"
@@ -253,12 +257,38 @@ class Lab:
 
 # --------------------------------------------------------------------------- scratch tree (§2.3)
 
+def override_regression(m: Module) -> str | None:
+    """The reviewed direct-build overrides with module-local CMake regressions."""
+    if (m.kind == "override" and m.name in {"groove", "lfo"}
+            and (m.folder / "CMakeLists.txt").is_file()
+            and (m.folder / "tests.cpp").is_file()):
+        return f"abi2_{m.name}_tests"
+    return None
+
+
 def registration_edits(lab_dir: Path, modules: list[Module]) -> dict[str, str]:
-    """The only edits allowed in a scratch tree, keyed by lab path: three per new module, pre-MB2."""
+    """Allow only the engine CMake and, for new modules, existing catalogue edits."""
     new = [m for m in modules if m.kind == "new"]
-    if not new or not (lab_dir / CATALOG_INC).is_file():
+    if not (lab_dir / CATALOG_INC).is_file():
         return {}
+    cmake_lines = [f"add_subdirectory(../modules/{m.name} {m.name})" for m in new]
+    for m in modules:
+        target = override_regression(m)
+        if target:
+            cmake_lines.extend([f"if(NOT TARGET {target})",
+                                f"  add_subdirectory(../modules/{m.name} {m.name}_override_tests)",
+                                "endif()"])
+    if not cmake_lines:
+        return {}
+
+    def append(text: str, extra: list[str]) -> str:
+        nl = "\r\n" if "\r\n" in text else "\n"
+        return (text if text.endswith(nl) else text + nl) + nl.join(extra) + nl
+
     cmake = (lab_dir / ENGINE_CMAKE).read_text(encoding="utf-8")
+    edits = {ENGINE_CMAKE: append(cmake, cmake_lines)}
+    if not new:
+        return edits
     header = (lab_dir / CATALOG_H).read_text(encoding="utf-8")
     inc = (lab_dir / CATALOG_INC).read_text(encoding="utf-8")
     newline = "\r\n" if "\r\n" in header else "\n"
@@ -268,11 +298,8 @@ def registration_edits(lab_dir: Path, modules: list[Module]) -> dict[str, str]:
     if last is None:
         raise Refused(f"{CATALOG_H} has no module #include line to follow")
     lines[last + 1:last + 1] = [f'#include "../../modules/{m.name}/dsp.h"' for m in new]
-    def append(text: str, extra: list[str]) -> str:
-        nl = "\r\n" if "\r\n" in text else "\n"
-        return (text if text.endswith(nl) else text + nl) + nl.join(extra) + nl
     return {
-        ENGINE_CMAKE: append(cmake, [f"add_subdirectory(../modules/{m.name} {m.name})" for m in new]),
+        **edits,
         CATALOG_H: newline.join(lines),
         CATALOG_INC: append(inc, [f"WS_APP_MODULE({m.cls})" for m in new]),
     }
@@ -354,6 +381,89 @@ def panel_edits(lab_dir: Path, modules: list[Module]) -> dict[str, str]:
     return edits
 
 
+def mb1_pin(lab_dir: Path) -> bool:
+    """The MB1 equality witness distinguishes native-descriptor pins from older manifest pins."""
+    return (lab_dir / MB1_WITNESS).is_file()
+
+
+def new_module_ids(modules: list[Module]) -> list[str]:
+    ids = []
+    for m in modules:
+        if m.kind != "new":
+            continue
+        ident = module_info_id(m.folder)
+        if not ident or ident in ids:
+            raise Refused(f"{m.name}: missing or duplicate staged module ID")
+        ids.append(ident)
+    return ids
+
+
+def bench_inventory(lab_dir: Path, modules: list[Module]) -> bytes:
+    """A106: insert only new IDs in experimental, preserving every pre-existing byte."""
+    try:
+        raw = (lab_dir / BENCH_SETS).read_bytes()
+        text = raw.decode("utf-8")
+        data = json.loads(text)
+        experimental, golden = data["experimental"], data["golden_set"]
+        if not isinstance(experimental, list) or not isinstance(golden, list):
+            raise ValueError("expected inventory arrays")
+        ids = new_module_ids(modules)
+        if set(ids) & (set(experimental) | set(golden)):
+            raise ValueError("staged new ID already in inventory")
+        if not ids:
+            return raw
+        matches = list(re.finditer(r'"experimental"\s*:\s*\[', text))
+        if len(matches) != 1:
+            raise ValueError("expected one experimental array")
+        start = matches[0].end() - 1
+        array, end = json.JSONDecoder().raw_decode(text, start)
+        if array != experimental:
+            raise ValueError("experimental array mismatch")
+        # Insert before trailing whitespace and the closing bracket, not by reserializing the object.
+        insert = start + 1 + len(text[start + 1:end - 1].rstrip())
+        addition = (", " if experimental else "") + ", ".join(json.dumps(i) for i in ids)
+        result = text[:insert] + addition + text[insert:]
+        data["experimental"] = experimental + ids
+        if json.loads(result) != data:
+            raise ValueError("inventory insertion changed another value")
+        return result.encode("utf-8")
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise Refused(f"{BENCH_SETS}: {error}") from error
+
+
+def mb1_generate(lab: Lab, dest: Path, modules: list[Module]) -> dict[str, bytes]:
+    """A106: freshly build this scratch's descriptor executable; check generated known-ID bytes."""
+    # A fresh, out-of-tree build prevents reuse of a host or previously staged descriptor.
+    # Do not let native build products enter the strict source-tree allowlist.
+    with tempfile.TemporaryDirectory(prefix=f"{dest.name}-describe-", dir=dest.parent) as tmp:
+        build_dir = Path(tmp)
+        ok, detail = cmake_build(lab, dest, build_dir, ["wire-describe"], False, "Release")
+        if not ok:
+            raise Refused(f"wire-describe build failed: {detail}")
+        try:
+            describe = binary(build_dir, "wire-describe", "Release").resolve()
+        except StepFailed as error:
+            raise Refused(error.detail) from error
+        result = run([str(describe)], cwd=dest, timeout=60)
+        try:
+            if result.returncode:
+                raise ValueError(tail(result.stderr, 10))
+            ids = [row["id"] for row in json.loads(result.stdout)["modules"]]
+            prior = [line.strip() for line in (lab.dir / KNOWN_IDS).read_text(encoding="utf-8").splitlines()
+                     if line.strip() and not line.startswith("#")]
+            if len(ids) != len(set(ids)) or set(ids) != set(prior) | set(new_module_ids(modules)):
+                raise ValueError("descriptor IDs differ from pin plus staged new IDs")
+            known = ("# SPDX-License-Identifier: GPL-3.0-only\n"
+                     "# Generated by tools/gen_ui_catalogue.py from wire-describe; never remove IDs.\n"
+                     + "".join(i + "\n" for i in sorted(ids))).encode("utf-8")
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise Refused(f"wire-describe: {error}") from error
+        generated = run_ui_generator(dest, describe)
+        if not (dest / KNOWN_IDS).is_file() or (dest / KNOWN_IDS).read_bytes() != known:
+            raise Refused(f"{KNOWN_IDS}: does not match scratch wire-describe output")
+    return {UI_CATALOGUE: generated, KNOWN_IDS: known}
+
+
 def expected_tree(lab: Lab, tracked: list[str], modules: list[Module],
                   panels: bool = False) -> dict[str, tuple[str, Path | bytes]]:
     """relative path -> ("lab"|"module"|"edit", source) for every file the scratch tree must hold."""
@@ -371,6 +481,8 @@ def expected_tree(lab: Lab, tracked: list[str], modules: list[Module],
     for rel, text in {**registration_edits(lab.dir, modules), **presentation_edit(lab.dir, modules),
                       **extra}.items():
         tree[rel] = ("edit", text.encode("utf-8"))
+    if mb1_pin(lab.dir):
+        tree[BENCH_SETS] = ("edit", bench_inventory(lab.dir, modules))
     return tree
 
 
@@ -411,10 +523,13 @@ def verify_scratch(scratch: Path, tree: dict, keep: tuple[str, ...] = ()) -> Non
                       + detail + "). A module that needs a lab change files a `limitation found` issue.")
 
 
-def run_ui_generator(dest: Path) -> bytes:
+def run_ui_generator(dest: Path, describe: Path | None = None) -> bytes:
     """§9.1 rule 2: the pin's own generator, unmodified, without --check. Its output is the only
     other allowed difference; verify_scratch refuses anything else it touches."""
-    result = run([sys.executable, str(dest / UI_GENERATOR)], cwd=dest, timeout=300)
+    command = [sys.executable, str(dest / UI_GENERATOR)]
+    if describe is not None:
+        command += ["--describe", str(describe)]
+    result = run(command, cwd=dest, timeout=300)
     if result.returncode:
         raise Refused(f"{UI_GENERATOR} refused the presentation.json entries:\n"
                       + tail(result.stdout + result.stderr, 10))
@@ -462,7 +577,12 @@ def prepare_tree(lab: Lab, dest: Path, modules: list[Module], panels: bool = Fal
             shutil.copy2(source, target)
         if kind != "lab":
             stamp[rel] = sha256(target.read_bytes())
-    if SIDECAR in tree and tree[SIDECAR][0] == "edit" and (dest / UI_GENERATOR).is_file():
+    if mb1_pin(lab.dir):
+        verify_scratch(dest, tree, keep)
+        for rel, generated in mb1_generate(lab, dest, modules).items():
+            tree[rel] = ("edit", generated)
+            stamp[rel] = sha256(generated)
+    elif SIDECAR in tree and tree[SIDECAR][0] == "edit" and (dest / UI_GENERATOR).is_file():
         generated = run_ui_generator(dest)
         tree[UI_CATALOGUE] = ("edit", generated)
         stamp[UI_CATALOGUE] = sha256(generated)
@@ -537,10 +657,14 @@ def ctest_names(build_dir: Path, config: str) -> list[str]:
 
 
 def module_tests(m: Module, names: list[str]) -> list[str]:
+    legacy = [n for n in names if n.startswith(m.name + "_") and n.endswith("_tests")]
+    required = override_regression(m)
+    if required:
+        return [required, *legacy]
     exact = f"abi2_{m.name}_tests"
     if exact in names:
         return [exact]
-    return [n for n in names if n.startswith(m.name + "_") and n.endswith("_tests")]
+    return legacy
 
 
 # --------------------------------------------------------------------------- steps
@@ -1246,6 +1370,8 @@ def prepare_app_tree(lab: Lab, modules: list[Module]) -> tuple[Path, dict]:
 
 def refresh_app_files(lab: Lab, scratch: Path, modules: list[Module], tracked: list[str]) -> dict:
     """Re-apply only the edited files (panels, sidecar, regenerated catalogue) to a prepared app tree."""
+    if mb1_pin(lab.dir):
+        return prepare_app_tree(lab, modules)[1]
     tree = expected_tree(lab, tracked, modules, panels=True)
     try:
         for rel, (kind, source) in tree.items():
@@ -1326,7 +1452,7 @@ def cmd_ui(args) -> int:
     scratch, tree = prepare_app_tree(lab, modules)
     if not any((m.folder / "presentation.json").is_file() for m in modules):
         log("warning: no module has a presentation.json, so none is in the UI catalogue yet")
-    log(f"app tree ready: build/app-{lab.sha7}/ (no C++ build; Studio uses its fake engine, no sound)")
+    log(f"app tree ready: build/app-{lab.sha7}/ (Studio uses its fake engine, no sound)")
     if args.no_serve:
         return 0
     npm_install(scratch, "apps/studio")
