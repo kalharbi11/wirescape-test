@@ -1,0 +1,282 @@
+// SPDX-License-Identifier: GPL-3.0-only
+#pragma once
+#include "wirescape_sdk.h"
+#include "comb_body.h"
+#include "coupler.h"
+#include "drift.h"
+namespace chaos_lite {
+struct ChaosLite {
+    static constexpr ws::Info info{"essentials.chaos_lite", "CHAOS", 1};
+    static constexpr std::array inputs{
+        ws::port("pitch", "Pitch", WS2_PITCH), ws::port("gate", "Gate", WS2_GATE, WS2_POLY, 1),
+        ws::port("velocity", "Velocity", WS2_CV_UNI, WS2_POLY, 1), ws::port("fm", "FM", WS2_CV_BI)};
+    static constexpr std::array outputs{
+        ws::port("left", "Left", WS2_AUDIO, WS2_POLY, 0, "stereo"),
+        ws::port("right", "Right", WS2_AUDIO, WS2_POLY, 0, "stereo")};
+    static constexpr uint32_t stepped = WS2_STEPPED | WS2_AUTOMATABLE;
+    static constexpr std::array params{
+        ws::param("shape_a", "A shape", 0, 2, .4f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 0),
+        ws::param("shape_b", "B shape", 0, 2, 1.6f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 1, 4, 0),
+        ws::param("detune", "B detune", -60, 60, 7, "cent", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 2, 4, 0),
+        ws::param("octave_a", "A octave", -3, 3, 0, "oct", stepped, WS2_LINEAR, 3, 4, 1),
+        ws::param("octave_b", "B octave", -3, 3, -1, "oct", stepped, WS2_LINEAR, 4, 4, 1),
+        ws::param("level_a", "A level", 0, 1, .55f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 5, 4, 0),
+        ws::param("level_b", "B level", 0, 1, .35f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 6, 4, 0),
+        ws::param("pan_a", "A pan", -1, 1, -.3f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 7, 4, 0),
+        ws::param("pan_b", "B pan", -1, 1, .3f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 8, 4, 0),
+        ws::param("route", "Route", 0, 2, 0, "", stepped, WS2_LINEAR, 9, 4, 1),
+        ws::param("depth", "Coupling", 0, 1, .5f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 10, 4, 0),
+        ws::param("body_tune", "Body tune", -2, 2, 0, "oct", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 11, 4, 0),
+        ws::param("feedback", "Body feedback", 0, .92f, .3f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 12, 4,
+                  0),
+        ws::param("damping", "Body damping", 0, .99f, .4f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 13, 4, 0),
+        ws::param("body_mix", "Body mix", 0, 1, .25f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 14, 4, 0),
+        ws::param("roughness", "Roughness", 0, 1, .1f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 15, 4, 0),
+        ws::param("rough_rate", "Roughness rate", 1, 150, 70, "Hz", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 16,
+                  4, 0),
+        ws::param("drift", "Drift", 0, 1, .1f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 17, 4, 0),
+        ws::param("jitter", "Jitter", 0, 1, .02f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 18, 4, 0),
+        ws::param("fall", "Fall", 0, 1, 0, "oct/s", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 19, 4, 0),
+        ws::param("lfo_rate", "LFO rate", .02f, 12, .3f, "Hz", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 20, 4, 0),
+        ws::param("lfo_depth", "LFO depth", 0, 1, .1f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 21, 4, 0),
+        ws::param("lfo_target", "LFO target", 0, 2, 0, "", stepped, WS2_LINEAR, 22, 4, 1),
+        ws::param("lfo_self", "LFO self", 0, 1, .2f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 23, 4, 0),
+        ws::param("cutoff", "Cutoff", 20, 20000, 9000, "Hz", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 24, 4, 0),
+        ws::param("level", "Output level", 0, 1, .5f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 25, 4, 0),
+        // Additive slot 26: omit in old patches -> sine, preserving the existing sound.
+        ws::param("lfo_shape", "LFO shape", 0, 3, 0, "", stepped, WS2_LINEAR, 26, 4, 1)};
+    struct Voice {
+        CombBody body[2]; Coupler coupler[2]; Drift drift;
+        float phase_a = 0, phase_b = 0, lfo = 0, lfo_previous = 0;
+        float rough = 0, rough_phase = 0, filter[2]{}, dc_input[2]{}, dc_output[2]{};
+        // Separate seeded stream: random LFO must not disturb drift/roughness.
+        ws::Random lfo_random;
+        float lfo_held = 0, lfo_from = 0, lfo_to = 0, lfo_switch_from = 0;
+        uint32_t lfo_last_shape = 0, lfo_fade_remaining = 0;
+        // Pitch-step note detection for fall retrigger; not saved (re-armed on load).
+        float last_pitch_in = 0; bool pitch_seen = false;
+    };
+    // A pitch-input step of at least half a semitone between samples is a new note.
+    static constexpr float note_step_octaves = 1.f / 24.f;
+    std::array<Voice, 8> voices{};
+    float rate = 48000;
+    uint32_t capacity = 1, comb_size = 0, delay_size = 0, lfo_fade_length = 480;
+    uint64_t seed = 0;
+    static uint32_t comb_length(double rate) { return static_cast<uint32_t>(std::ceil(rate / 16.0)) + 4; }
+    static uint32_t delay_length(double rate) { return static_cast<uint32_t>(std::ceil(rate * .006)) + 4; }
+    static ws2_memory memory_requirements(const ws2_config& c) {
+        ws2_memory m{}; m.struct_size = sizeof(m);
+        m.alignment = 32;
+        m.large_bytes = size_t(std::min<uint32_t>(c.max_channels, 8u)) * 2 * ((3 * comb_length(c.sample_rate) + delay_length(c.sample_rate)) * sizeof(float) + 64);
+        return m;
+    }
+    bool prepare(const ws::Setup& s) {
+        rate = static_cast<float>(s.sample_rate()); capacity = std::min<uint32_t>(s.max_channels(), 8u); seed = s.config.seed;
+        comb_size = comb_length(rate); delay_size = delay_length(rate);
+        lfo_fade_length = std::max<uint32_t>(1u, static_cast<uint32_t>(std::lround(rate * .01f)));
+        for (uint32_t c = 0; c < capacity; ++c) for (uint32_t side = 0; side < 2; ++side) {
+            auto* comb = static_cast<float*>(s.alloc(3 * comb_size * sizeof(float), 32, WS2_LARGE));
+            auto* delay = static_cast<float*>(s.alloc(delay_size * sizeof(float), 32, WS2_LARGE));
+            if (!comb || !delay) return false;
+            voices[c].body[side].attach(comb, comb_size); voices[c].coupler[side].attach(delay, delay_size);
+        }
+        return true;
+    }
+    void reset() {
+        for (uint32_t c = 0; c < capacity; ++c) {
+            auto& v = voices[c];
+            for (auto& body : v.body) body.reset(); for (auto& coupler : v.coupler) coupler.reset();
+            v.phase_a = v.phase_b = v.lfo = v.lfo_previous = v.rough = v.rough_phase = 0;
+            std::fill_n(v.filter, 2, 0.f); std::fill_n(v.dc_input, 2, 0.f); std::fill_n(v.dc_output, 2, 0.f);
+            v.drift.reset(seed, c);
+            v.lfo_random.seed(seed ^ 0x9e3779b97f4a7c15ull, c + 17u);
+            v.lfo_held = v.lfo_random.bipolar();
+            v.lfo_from = 0.f;
+            v.lfo_to = v.lfo_random.bipolar();
+            v.lfo_switch_from = 0.f;
+            v.lfo_last_shape = v.lfo_fade_remaining = 0;
+            v.last_pitch_in = 0; v.pitch_seen = false;
+        }
+    }
+    // Wider cubic PolyBLEP: integrate the parabolic smoothing kernel over
+    // +/-1.65 samples. The ordinary two-sample quadratic correction leaves
+    // too much energy in the first folded harmonics. Cap phase support below
+    // half a cycle so the fundamental cannot cross the kernel's first null.
+    static float blep_residual(float u) {
+        const float t = 1.f - u;
+        return t * t * (1.f + .5f * u);
+    }
+    static float falling_blep(float phase, float width, float inverse_width) {
+        float result = 0.f;
+        if (phase < width) result += blep_residual(phase * inverse_width);
+        if (1.f - phase < width) result -= blep_residual((1.f - phase) * inverse_width);
+        return result;
+    }
+    static float wave(float phase, float shape, float step) {
+        const float saw = phase * 2.f - 1.f, square = phase < .5f ? 1.f : -1.f;
+        // Preserve the exact old arithmetic at pure sine, including rounding.
+        if (shape >= 2.f) return square + (shape - 1.f) * (std::sin(6.28318530718f * phase) - square);
+        const float width = std::min(1.65f * step, .45f);
+        const float inverse_width = 1.f / width;
+        const float edge = falling_blep(phase, width, inverse_width);
+        // Frequency-continuous level compensation for removed harmonic energy.
+        // Bound gain at high normalized pitch. No change to sine gain.
+        const float d = std::min(step, .18f);
+        const float common = 11.f * d;
+        const float saw_bl = (saw + edge) * (1.f + d * (1.9f + common));
+        if (shape <= 0.f) return saw_bl;
+        const float half_phase = phase < .5f ? phase + .5f : phase - .5f;
+        const float square_bl = (square - edge + falling_blep(half_phase, width, inverse_width)) *
+                                (1.f + d * (1.6f + common));
+        if (shape < 1.f) return saw_bl + shape * (square_bl - saw_bl);
+        return square_bl + (shape - 1.f) * (std::sin(6.28318530718f * phase) - square_bl);
+    }
+    static void advance(float& phase, float step) { phase += step; phase -= std::floor(phase); }
+    static float bound(float x, float lo, float hi) { return std::clamp(x, lo, hi); }
+    void process(ws::Block& b) {
+        const uint32_t n = b.channels();
+        for (uint32_t side = 0; side < 2; ++side) { b.out(side).set_channels(n); b.out(side).mark_constant(false); }
+        for (uint32_t c = 0; c < n; ++c) {
+            if (c >= capacity) { for (uint32_t side = 0; side < 2; ++side) std::fill_n(b.out(side).ch(c), b.frames(), 0.f); continue; }
+            auto& v = voices[c];
+            for (uint32_t i = 0; i < b.frames(); ++i) {
+                auto p = [&](uint32_t slot) { return b.param(slot).value(c, i); };
+                const float gate = bound(b.in(1).value(c, i), 0, 1), velocity = bound(b.in(2).value(c, i), 0, 1);
+                const float pitch_in = b.in(0).value(c, i);
+                const bool new_note = v.pitch_seen && std::abs(pitch_in - v.last_pitch_in) >= note_step_octaves;
+                v.last_pitch_in = pitch_in; v.pitch_seen = true;
+                const float instability = v.drift.process(gate, p(17), p(18), p(19), rate, new_note);
+                const uint32_t shape = static_cast<uint32_t>(std::clamp(std::lround(p(26)), 0l, 3l));
+                // Shape zero stays on the exact old sine path (no extra blending).
+                float lfo = std::sin(6.28318530718f * v.lfo);
+                if (shape == 1) lfo = 4.f * std::abs(v.lfo - .5f) - 1.f;
+                else if (shape == 2) lfo = v.lfo_held;
+                else if (shape == 3) {
+                    const float u = .5f - .5f * std::cos(3.14159265359f * v.lfo);
+                    lfo = v.lfo_from + (v.lfo_to - v.lfo_from) * u;
+                }
+                if (shape != v.lfo_last_shape) {
+                    v.lfo_switch_from = v.lfo_previous;
+                    v.lfo_fade_remaining = lfo_fade_length;
+                    v.lfo_last_shape = shape;
+                }
+                if (v.lfo_fade_remaining) {
+                    const float t =
+                        1.f - static_cast<float>(v.lfo_fade_remaining) / static_cast<float>(lfo_fade_length);
+                    lfo = v.lfo_switch_from + t * (lfo - v.lfo_switch_from);
+                    --v.lfo_fade_remaining;
+                }
+                const float old_phase = v.lfo;
+                advance(v.lfo, p(20) * std::max(.05f, 1.f + p(23) * v.lfo_previous) / rate);
+                if (v.lfo < old_phase) {
+                    v.lfo_held = v.lfo_random.bipolar();
+                    v.lfo_from = v.lfo_to;
+                    v.lfo_to = v.lfo_random.bipolar();
+                }
+                v.lfo_previous = lfo;
+                const uint32_t target = static_cast<uint32_t>(std::clamp(std::lround(p(22)), 0l, 2l));
+                const float mod = lfo * p(21);
+                const float pitch = bound(pitch_in + .25f * b.in(3).value(c, i) + instability, -4, 6);
+                const float fa = bound(261.625565f * std::exp2(bound(pitch + std::round(p(3)) + (target == 0 ? mod : 0), -4, 8)), 16, rate * .45f);
+                const float fb = bound(261.625565f * std::exp2(bound(pitch + std::round(p(4)) + p(2) / 1200.f, -4, 8)), 16, rate * .45f);
+                const float step_a = fa / rate, step_b = fb / rate;
+                const float a = wave(v.phase_a, p(0), step_a) * p(5), bb = wave(v.phase_b, p(1), step_b) * p(6);
+                advance(v.phase_a, step_a); advance(v.phase_b, step_b);
+                advance(v.rough_phase, p(16) / rate);
+                if (v.rough_phase < p(16) / rate) v.rough = v.drift.random.bipolar();
+                const float rough_gain = 1.f - p(15) * (.5f + .5f * v.rough);
+                const float tune = bound(261.625565f * std::exp2(bound(pitch + p(11) + (target == 1 ? mod : 0), -4, 8)), 16, rate * .45f);
+                const float coefficient = 1.f - std::exp(-6.28318530718f * bound(p(24) * (target == 2 ? std::exp2(mod * 3) : 1), 20, rate * .45f) / rate);
+                for (uint32_t side = 0; side < 2; ++side) {
+                    const float sign = side == 0 ? -1.f : 1.f;
+                    const float aa = a * (.5f + sign * p(7) * .5f), bpan = bb * (.5f + sign * p(8) * .5f);
+                    const uint32_t mode = static_cast<uint32_t>(std::clamp(std::lround(p(9)), 0l, 2l));
+                    const float coupled = v.coupler[side].process(aa, bpan, mode, p(10), rate);
+                    const float body = v.body[side].process(coupled, rate / tune, p(12), p(13));
+                    const float x = (coupled + p(14) * (body - coupled)) * rough_gain * gate * velocity;
+                    v.filter[side] += coefficient * (x - v.filter[side]);
+                    const float dc = v.filter[side] - v.dc_input[side] + .995f * v.dc_output[side];
+                    v.dc_input[side] = v.filter[side]; v.dc_output[side] = dc;
+                    const float y = dc * p(25);
+                    b.out(side).ch(c)[i] = bound(y / (1.f + std::abs(y)), -.8912509f, .8912509f);
+                }
+            }
+        }
+    }
+    // Patch-state policy: instability state survives; delay/comb/filter history resets.
+    int save_state(ws::Writer w) {
+        if (!w.u32(2)) return WS2_CAPACITY;
+        for (const auto& v : voices) {
+            const auto rng = v.drift.random.save();
+            for (auto word : {uint32_t(rng.state), uint32_t(rng.state >> 32), uint32_t(rng.sequence), uint32_t(rng.sequence >> 32)}) if (!w.u32(word)) return WS2_CAPACITY;
+            for (float value : {v.phase_a, v.phase_b, v.lfo, v.lfo_previous, v.rough, v.rough_phase, v.drift.current, v.drift.target, v.drift.jitter, v.drift.fall}) if (!w.f32(value)) return WS2_CAPACITY;
+            if (!w.u32(v.drift.tick) || !w.u32(v.drift.high ? 1u : 0u)) return WS2_CAPACITY;
+            const auto lfo_rng = v.lfo_random.save();
+            for (auto word : {uint32_t(lfo_rng.state), uint32_t(lfo_rng.state >> 32), uint32_t(lfo_rng.sequence),
+                              uint32_t(lfo_rng.sequence >> 32)})
+                if (!w.u32(word)) return WS2_CAPACITY;
+            for (float value : {v.lfo_held, v.lfo_from, v.lfo_to, v.lfo_switch_from})
+                if (!w.f32(value)) return WS2_CAPACITY;
+            if (!w.u32(v.lfo_last_shape) || !w.u32(v.lfo_fade_remaining)) return WS2_CAPACITY;
+        }
+        return WS2_OK;
+    }
+    int load_state(ws::Reader r) {
+        uint32_t version;
+        if (!r.u32(version)) return WS2_INVALID;
+        if (version != 1 && version != 2) return WS2_UNSUPPORTED;
+        auto staged = voices;
+        for (uint32_t channel = 0; channel < staged.size(); ++channel) {
+            auto &v = staged[channel];
+            uint32_t words[4], high;
+            for (auto& word : words) if (!r.u32(word)) return WS2_INVALID;
+            float* values[] = {&v.phase_a, &v.phase_b, &v.lfo, &v.lfo_previous, &v.rough, &v.rough_phase, &v.drift.current, &v.drift.target, &v.drift.jitter, &v.drift.fall};
+            for (auto value : values) if (!r.f32(*value) || !std::isfinite(*value)) return WS2_INVALID;
+            if (!r.u32(v.drift.tick) || v.drift.tick >= 128 || !r.u32(high) || high > 1) return WS2_INVALID;
+            if (v.phase_a < 0 || v.phase_a >= 1 || v.phase_b < 0 || v.phase_b >= 1 || v.lfo < 0 || v.lfo >= 1 || v.rough_phase < 0 || v.rough_phase >= 1 || std::abs(v.lfo_previous) > 1 || std::abs(v.rough) > 1 || std::abs(v.drift.current) > 1 || std::abs(v.drift.target) > 1 || std::abs(v.drift.jitter) > 1 || v.drift.fall < 0 || v.drift.fall > 4 || !(words[2] & 1)) return WS2_INVALID;
+            v.drift.random.restore({uint64_t(words[0]) | uint64_t(words[1]) << 32, uint64_t(words[2]) | uint64_t(words[3]) << 32}); v.drift.high = high != 0;
+            if (version == 2) {
+                uint32_t lrng[4]{};
+                for (auto &word : lrng)
+                    if (!r.u32(word)) return WS2_INVALID;
+                if (!r.f32(v.lfo_held) || !r.f32(v.lfo_from) || !r.f32(v.lfo_to) || !r.f32(v.lfo_switch_from) ||
+                    !r.u32(v.lfo_last_shape) || !r.u32(v.lfo_fade_remaining))
+                    return WS2_INVALID;
+                if (!std::isfinite(v.lfo_held) || !std::isfinite(v.lfo_from) || !std::isfinite(v.lfo_to) ||
+                    !std::isfinite(v.lfo_switch_from) || std::abs(v.lfo_held) > 1 || std::abs(v.lfo_from) > 1 ||
+                    std::abs(v.lfo_to) > 1 || std::abs(v.lfo_switch_from) > 1 || v.lfo_last_shape > 3 ||
+                    !(lrng[2] & 1u))
+                    return WS2_INVALID;
+                // The fade duration depends on sample rate. A valid state saved
+                // at a higher rate may have more samples left than this rate's
+                // 10 ms transition; keep it bounded rather than rejecting it.
+                v.lfo_fade_remaining = std::min(v.lfo_fade_remaining, lfo_fade_length);
+                v.lfo_random.restore(
+                    {uint64_t(lrng[0]) | uint64_t(lrng[1]) << 32, uint64_t(lrng[2]) | uint64_t(lrng[3]) << 32});
+            } else {
+                // Existing state-v1 saved only the sine LFO phase. Re-seed new
+                // waveform state without altering old drift and oscillator phases.
+                v.lfo_random.seed(seed ^ 0x9e3779b97f4a7c15ull, channel + 17u);
+                v.lfo_held = v.lfo_random.bipolar();
+                v.lfo_from = 0.f;
+                v.lfo_to = v.lfo_random.bipolar();
+                v.lfo_switch_from = v.lfo_previous;
+                v.lfo_last_shape = v.lfo_fade_remaining = 0;
+            }
+        }
+        reset();
+        for (uint32_t c = 0; c < capacity; ++c) {
+            const auto& s = staged[c]; auto& v = voices[c];
+            v.drift = s.drift; v.phase_a = s.phase_a; v.phase_b = s.phase_b; v.lfo = s.lfo; v.lfo_previous = s.lfo_previous; v.rough = s.rough; v.rough_phase = s.rough_phase;
+            v.lfo_random = s.lfo_random;
+            v.lfo_held = s.lfo_held;
+            v.lfo_from = s.lfo_from;
+            v.lfo_to = s.lfo_to;
+            v.lfo_switch_from = s.lfo_switch_from;
+            v.lfo_last_shape = s.lfo_last_shape;
+            v.lfo_fade_remaining = s.lfo_fade_remaining;
+        }
+        return WS2_OK;
+    }
+};
+}
