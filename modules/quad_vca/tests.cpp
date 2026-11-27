@@ -2,6 +2,7 @@
 #include "../../sdk/examples/test_support.h"
 #include "../../tests/native/abi2/allocation_watch.h"
 #include "dsp.h"
+#include "../../engine/engine2.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -330,9 +331,112 @@ void test_lpg_at_load_and_reset() {
     }
 }
 
+
+void test_mod9_modes() {
+    const auto *d = ws::Module<quad_vca::QuadVca>::descriptor();
+    REQUIRE(d->param_count == 9 && d->input_count == 8 && d->output_count == 5);
+    for (uint32_t k = 0; k < 4; ++k) {
+        const auto &p = d->params[4 + k];
+        REQUIRE(p.flags == (WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE));
+        REQUIRE(p.minimum == 0.f && p.maximum == 1.f && p.initial == 0.f && p.step == 1.f);
+        REQUIRE(d->params[k].flags == (WS2_MODULATABLE | WS2_PER_VOICE | WS2_AUDIO_RATE_OK | WS2_AUTOMATABLE));
+    }
+    REQUIRE(d->params[8].flags == (WS2_MODULATABLE | WS2_AUTOMATABLE));
+    for (uint32_t voices : {1u, 16u})
+        for (uint32_t k = 0; k < 4; ++k) {
+            Rig block({48000., voices}), single({48000., voices});
+            for (Rig *r : {&block, &single}) {
+                r->connect(0);
+                for (uint32_t c = 0; c < voices; ++c)
+                    r->data->input[0][c][0] = .25f + .01f * float(c);
+                r->run(kFrames); // Prime all channels in VCA.
+            }
+            std::array<float, kFrames> effective{};
+            for (uint32_t i = 64; i < 192; ++i) effective[i] = 1.f;
+            block.param_rows[4 + k] = effective.data();
+            block.params[4 + k].flags &= ~uint32_t(WS2_CONSTANT);
+            block.run(kFrames);
+            REQUIRE(!(block.outputs[k].flags & WS2_CONSTANT));
+            // One-frame oracle exercises the same selected mode at each frame.
+            for (uint32_t i = 0; i < kFrames; ++i) {
+                single.values[4 + k] = effective[i];
+                single.run(1);
+                for (uint32_t c = 0; c < voices; ++c)
+                    for (uint32_t p = 0; p < 5; ++p) {
+                        const float actual = block.sample(p, c, i);
+                        REQUIRE(std::isfinite(actual));
+                        REQUIRE(std::abs(actual - single.sample(p, c)) < 1e-6f);
+                        if (p < 4 && p != k)
+                            REQUIRE(actual == block.data->input[0][c][0]);
+                    }
+            }
+            REQUIRE(block.sample(k, 0, 63) == .25f);
+            REQUIRE(block.sample(k, 0, 64) < .25f);
+            block.param_rows[4 + k] = &block.values[4 + k];
+            block.params[4 + k].flags |= WS2_CONSTANT;
+            for (int n = 0; n < 3; ++n) block.run(kFrames);
+            REQUIRE(block.outputs[k].flags & WS2_CONSTANT);
+            for (uint32_t c = 0; c < voices; ++c)
+                REQUIRE(block.sample(k, c) == block.data->input[0][c][0]);
+            block.descriptor->reset(block.state);
+            block.run(kFrames);
+            REQUIRE(block.outputs[k].flags & WS2_CONSTANT);
+            REQUIRE(block.sample(k) == .25f);
+        }
+}
+
+struct ModeCv {
+    static constexpr ws::Info info{"test.quad_vca_mode_cv", "Mode CV", 1};
+    static constexpr std::array<ws2_port, 0> inputs{};
+    static constexpr std::array outputs{ws::port("audio", "Audio", WS2_AUDIO),
+                                        ws::port("mode", "Mode", WS2_CV_BI)};
+    static constexpr std::array<ws2_param, 0> params{};
+    void prepare(const ws::Setup &) {}
+    void reset() {}
+    void process(ws::Block &b) {
+        for (uint32_t p = 0; p < 2; ++p) {
+            b.out(p).set_channels(1);
+            b.out(p).mark_constant(false);
+        }
+        for (uint32_t i = 0; i < b.frames(); ++i) {
+            b.out(0).ch(0)[i] = .25f;
+            b.out(1).ch(0)[i] = b.frame_position() + i >= 64 ? 1.f : 0.f;
+        }
+    }
+};
+void test_mod9_engine_cables() {
+    for (uint32_t k = 0; k < 4; ++k) {
+        wirescape::engine2::Config cfg;
+        cfg.max_block = 128;
+        wirescape::engine2::Engine e(cfg);
+        REQUIRE(e.add_node(1, ws::Module<ModeCv>::descriptor()));
+        REQUIRE(e.add_node(2, ws::Module<quad_vca::QuadVca>::descriptor()));
+        REQUIRE(e.connect(1, 0, 2, 0));
+        REQUIRE(e.modulate(1, 1, 2, 4 + k, 1.f));
+        REQUIRE(e.output(2, k, 0) && e.prepare());
+        float samples[128]{};
+        float *rows[]{samples};
+        {
+            allocation_watch::Scope watch;
+            REQUIRE(e.render(rows, 1, 128) == WS2_OK);
+            REQUIRE(watch.allocations() == 0);
+        }
+        REQUIRE(e.output_sample(2, k, 0, 63) == .25f);
+        REQUIRE(e.output_sample(2, k, 0, 64) < .25f);
+        for (uint32_t i = 0; i < 128; ++i) {
+            REQUIRE(std::isfinite(e.output_sample(2, k, 0, i)));
+            for (uint32_t p = 0; p < 4; ++p)
+                if (p != k) REQUIRE(e.output_sample(2, p, 0, i) == .25f);
+        }
+        REQUIRE(e.meter().faults == 0);
+    }
+}
+
 } // namespace
 
 int main() {
+    test_mod9_modes();
+    test_mod9_engine_cables();
     test_legacy_slots();
     test_vca_and_normalling();
     test_varying_control();
