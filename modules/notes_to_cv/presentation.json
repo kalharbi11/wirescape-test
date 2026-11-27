@@ -1,0 +1,67 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "id": "essentials.notes_to_cv",
+  "name": "Notes to CV",
+  "category": "MIDI / control",
+  "ports": [
+    {
+      "id": "notes",
+      "name": "Notes",
+      "direction": "input",
+      "kind": "event",
+      "hint": "ev_notes",
+      "poly": "poly",
+      "stereo_pair": null
+    },
+    {
+      "id": "pitch",
+      "name": "Pitch",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "pitch",
+      "poly": "poly",
+      "stereo_pair": null
+    },
+    {
+      "id": "gate",
+      "name": "Gate",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "gate",
+      "poly": "poly",
+      "stereo_pair": null
+    },
+    {
+      "id": "velocity",
+      "name": "Velocity",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_uni",
+      "poly": "poly",
+      "stereo_pair": null
+    },
+    {
+      "id": "trig",
+      "name": "Trigger",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "gate",
+      "poly": "poly",
+      "stereo_pair": null
+    }
+  ],
+  "parameters": [
+    {
+      "id": "voices",
+      "name": "Voices",
+      "minimum": 1,
+      "maximum": 16,
+      "default": 4,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 3,
+      "modulatable": false
+    }
+  ]
+}
