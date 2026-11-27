@@ -42,7 +42,7 @@ synthetic UMP through MIDI In and MIDI to CV, without a shared tool change.
 No lab edits; active offline render evidence remains unavailable until lab
 support is approved. No gate is weakened.
 
-[LR-12](../../LAB_REQUESTS.md): blocking C4 failure on the current pin: on the untouched descriptor, test-first T0 at decafcf
+[LR-12](../../LAB_REQUESTS.md): historical C4 failure on the old pin: on the untouched descriptor, test-first T0 at decafcf
 failed before compilation: `param[2] range/initial invalid: steal_policy`.
 [Job log](https://github.com/kalharbi11/wirescape-test/actions/runs/45970820334/job/140410596032).
 The pinned wsmod validator rejects min == max; the mandated inert parameter
@@ -51,6 +51,6 @@ without altering the parameter contract or bypassing C4; neither is allowed.
 The new regression was not executed on the old pin. Lab PR [#724](https://github.com/kalharbi11/wirescape-lab/pull/724)
 merged the C4 singleton-range fix at `3d3db7a64090682a62f220d73baef49709048c87`.
 The original DSP, module.cpp, module.json, tests and trigger support are unchanged
-between the old pin and this candidate. PIN-next #57 is still under validation;
-#31 remains blocked until the pin merges and the regression and identical gates
-actually execute. LR-13 remains open independently; the idle demo is intentional.
+between the old pin and this candidate. PIN-next #57 merged at workshop `ed24cc8`; the singleton fix is now pinned.
+The regression and identical gates must actually execute on the integrated head
+before #31 can merge. LR-13 remains open independently; the idle demo is intentional.
