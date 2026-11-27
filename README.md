@@ -16,7 +16,7 @@ are merged: `function_envelope` and `adsr` (overrides; T2 waits for the next pin
 Stage 2 so far: `rhythm_lanes`, `lfo`, `groove`, `cv_to_notes`, `host_keyboard`, and the owner's `guttr` (T1).
 
 
-Active task pool: [TASKS.md](TASKS.md), a few short bundles (G, H, A) that any session can claim.
+Active task pool: [TASKS.md](TASKS.md), short bundles that any session can claim when their gates hold. Next batch: I (delay/reverb) and J (quad_vca/chaos_lite/spectral); G finishes batch A and A continues workshop CI.
 No agents are assigned in docs.
 
 ## Layout
