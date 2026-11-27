@@ -1,0 +1,180 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "code": "GUTTR",
+  "layout": "tall",
+  "sections": [
+    {
+      "label": "VOICE",
+      "cells": [
+        {
+          "label": "01 / SOURCE",
+          "rows": [
+            [
+              "pressure"
+            ],
+            [
+              "style",
+              "breath",
+              "whisper"
+            ]
+          ]
+        },
+        {
+          "label": "02 / TRACT",
+          "rows": [
+            [
+              "vowel"
+            ],
+            [
+              "size",
+              "pharynx",
+              "mouth",
+              "ring"
+            ]
+          ]
+        },
+        {
+          "label": "03 / MOTION",
+          "rows": [
+            [
+              "jitter",
+              "shimmer",
+              "tremor",
+              "wander",
+              "vibrato"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "cells": [
+        {
+          "label": "04 / ROUGHNESS",
+          "grow": 2,
+          "columns": 2,
+          "rows": [
+            [
+              "growl",
+              "tail_fry",
+              "rasp",
+              "breaks",
+              "creak",
+              "flutter"
+            ]
+          ]
+        },
+        {
+          "label": "05 / ENSEMBLE",
+          "rows": [
+            [
+              "throats",
+              "looseness",
+              "spread",
+              "size_spread"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "label": "AFTER THE VOICE",
+      "tone": "band",
+      "cells": [
+        {
+          "label": "06 / ENVELOPE",
+          "rows": [
+            [
+              "attack",
+              "release"
+            ],
+            [
+              "glide"
+            ]
+          ]
+        },
+        {
+          "label": "07 / SPACE",
+          "rows": [
+            [
+              "room",
+              "wet"
+            ],
+            [
+              "decay",
+              "distance",
+              "azimuth"
+            ]
+          ]
+        },
+        {
+          "label": "08 / OUTPUT",
+          "rows": [
+            [
+              "drive",
+              "level"
+            ],
+            [
+              "body",
+              "air",
+              "grit_after"
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "short": {
+    "size": "LENGTH",
+    "vibrato": "VIBRATO",
+    "tail_fry": "TAIL FRY",
+    "looseness": "LOOSE",
+    "size_spread": "SIZE SPR",
+    "distance": "DIST",
+    "azimuth": "AZIM",
+    "grit_after": "POST GRIT"
+  },
+  "roles": {
+    "pressure": "hero",
+    "vowel": "hero",
+    "style": "slider",
+    "breath": "slider",
+    "whisper": "slider",
+    "size": "slider",
+    "pharynx": "slider",
+    "mouth": "slider",
+    "ring": "slider",
+    "jitter": "slider",
+    "shimmer": "slider",
+    "tremor": "slider",
+    "wander": "slider",
+    "vibrato": "slider",
+    "growl": "slider",
+    "rasp": "slider",
+    "creak": "slider",
+    "tail_fry": "slider",
+    "breaks": "slider",
+    "flutter": "slider",
+    "throats": "slider",
+    "looseness": "slider",
+    "spread": "slider",
+    "size_spread": "slider",
+    "attack": "secondary",
+    "release": "secondary",
+    "glide": "trim",
+    "room": "secondary",
+    "wet": "secondary",
+    "decay": "trim",
+    "distance": "trim",
+    "azimuth": "trim",
+    "drive": "secondary",
+    "level": "secondary",
+    "body": "trim",
+    "air": "trim",
+    "grit_after": "toggle"
+  },
+  "modPorts": [
+    "vowel",
+    "pressure"
+  ]
+}

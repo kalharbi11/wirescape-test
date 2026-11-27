@@ -1,0 +1,11 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "lab_commit": "c083b26722b5b4d09e3285ab43f93e93be192f4f",
+  "files": {
+    "apps/studio/src/panels/PanelBuilder.ts": "55f9baa020e77829e7d773b12805fe0abadfc5d444f740416992db96a7f1e6fa",
+    "apps/studio/src/panels/layouts.ts": "54c708056d6ad76ed48113bc8cf0d625bbef718bea4f07389ea6bc52f3fbd6db",
+    "apps/studio/src/panels/widgets/Slider.ts": null,
+    "apps/studio/src/styles/app.css": "c6a0e9d541b3266634d64851ab2fa50c3fcbbbd44e3702321c082d98644d70cb",
+    "apps/studio/src/styles/controls.css": "68d0223884e2243327d715c9fb3ec6721aea83c148ba4e5f75eb413e69303650"
+  }
+}
