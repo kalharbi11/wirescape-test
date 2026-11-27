@@ -950,7 +950,66 @@ static void settled_reference_diagnosis() {
     REQUIRE(identical);
 }
 
+
+ // Effective parameter rows may change within a block. Test the original
+ // sample cadence, rather than merely changing the stored value per block.
+static void batch_b_effective_rows() {
+    const auto *desc = ws::Module<Delay>::descriptor();
+    const uint32_t expected = WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE;
+    REQUIRE(desc->params[kDivision].flags == expected);
+    REQUIRE(desc->params[kMode].flags == expected);
+    for (unsigned channels : {1u, 16u}) {
+        for (bool clocked : {false, true}) {
+            Rig r;
+            wet_only(r, .001f, 0.f);
+            r.in[0].connected = true;
+            r.in[0].ch.assign(channels, Wave(128, .01f));
+            if (clocked) {
+                Wave clock(128, 0.f);
+                clock[0] = clock[64] = 1.f;
+                r.clock(std::move(clock));
+            }
+            Delay dsp;
+            const ws2_config config{sizeof(config), r.rate, 256, 16, 7, nullptr, 0};
+            REQUIRE(dsp.prepare(ws::Setup{config, r.host}));
+            float mode[128]{}, division[128]{};
+            for (unsigned i = 0; i < 128; ++i) {
+                mode[i] = i < 80 ? 0.f : 1.f;
+                division[i] = i < 80 ? 5.f : 6.f;
+            }
+            const float *mode_row = mode, *division_row = division;
+            const auto out = r.run(128, 128, {}, true, [&](ws2_process &ctx) {
+                ws2_signal effective[6];
+                std::copy_n(ctx.params, 6, effective);
+                effective[kMode] = {sizeof(ws2_signal), &mode_row, 1, 0};
+                effective[kDivision] = {sizeof(ws2_signal), &division_row, 1, 0};
+                ctx.params = effective;
+                ws::Block b(ctx);
+                dsp.process(b);
+                return WS2_OK;
+            });
+            REQUIRE(finite_within(out.l, 1.6f) && finite_within(out.r, 1.6f));
+            REQUIRE(std::fabs(dsp.mode_blend - 48.f * dsp.mode_step) < 1e-6f);
+            const float input = .01f * channels;
+            REQUIRE(std::fabs(dsp.line[1][79] - input) < 1e-6f);
+            REQUIRE(std::fabs(dsp.line[1][80] - input * (1.f - dsp.mode_step)) < 1e-6f);
+            if (clocked) {
+                REQUIRE(dsp.applied == 64.);
+                REQUIRE(dsp.division_seen == 6);
+                REQUIRE(dsp.division_to == 96.);
+                REQUIRE(dsp.division_left == dsp.fade_frames - 48);
+            } else {
+                REQUIRE(dsp.division_seen == -1 && dsp.division_left == 0);
+            }
+            { allocation_watch::Scope watch; dsp.reset(); REQUIRE(watch.allocations() == 0); }
+            REQUIRE(dsp.mode_blend == 0.f && dsp.division_seen == -1);
+        }
+    }
+    std::puts("PASS delay batch B flags and sample-addressed mode/division");
+}
+
 int main() {
+    batch_b_effective_rows();
     settled_reference_diagnosis();
     echo_position();
     feedback_decay();
