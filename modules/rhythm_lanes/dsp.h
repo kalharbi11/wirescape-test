@@ -167,11 +167,14 @@ struct RhythmLanes {
                     l=Lane{};l.start=now;latch(l,b,k,i);
                 } else {
                     const double old=wsbeat::kDivisionBeats[l.division];
-                    if(now-l.start+1e-9>=old) {
+                    if(!std::isfinite(now-l.start)) {
+                        l=Lane{};l.start=now;latch(l,b,k,i);
+                    } else if(now-l.start+1e-9>=old) {
                         // Complete the old cycle before applying a new division.
                         // Large jumps skip elapsed cycles using the old latched length.
                         const double count=std::floor((now-l.start+1e-9)/old);
-                        l.cycle+=static_cast<uint64_t>(std::fmod(count,4294967296.));
+                        if(!std::isfinite(count)) {l=Lane{};l.start=now;latch(l,b,k,i);b.out(k).ch(0)[i]=0;continue;}
+                        l.cycle+=static_cast<uint64_t>(std::fmod(count,18446744073709551616.));
                         l.start+=count*old;
                         latch(l,b,k,i);
                         // If the newly latched cycle is shorter than the overshoot, start here.
