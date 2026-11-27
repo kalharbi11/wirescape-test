@@ -196,20 +196,23 @@ tree. Hosted and VM timings are noisy, and the maximum varies from run to run.
   owner-requested.
 
 ## Limitations
+Lab-facing gaps are rows in [`LAB_REQUESTS.md`](../../LAB_REQUESTS.md) (rule 2 of AGENTS.md); none is filed in
+the lab unless the owner asks. Each bullet names its row. The module has no code workaround for any of them.
+- **`panel.json` needs the workshop Studio overlay** (`tools/studio`, applied by `wstest ui` and `wstest app`;
+  overlay PR to be linked when it opens). The panel uses grid cells, horizontal sliders, a band and the parameter
+  rail +/-, which the pinned Studio lacks. Without the overlay it does not render as designed. IDs, flags and DSP
+  do not depend on it. LAB_REQUESTS.md LR-1.
 - **No module-to-UI telemetry in the lab ABI.** The package's live readouts (active throats, f0, Rd,
-  jitter and shimmer %, low-mid cut, limiter reduction) have no channel to Studio, so they were dropped.
+  jitter and shimmer %, low-mid cut, limiter reduction) have no channel to Studio, so they were dropped. LR-2.
 - **Studio presets are hard-coded in lab core code.** A module cannot ship presets, so the 11 texture
-  presets live in README.md as values. The lead files the lab issue.
-- **No per-module panel colour.** `PanelOverride` (Studio `panels/layouts.ts`) has no colour or accent
-  key, so `panel.json` cannot give GUTTR its own colour.
-- **`panel.json` is not exercised here.** Studio reads `apps/studio/public/panels/<id>.json`, and the
-  harness registers no panel file. The file is checked only by hand against `PanelOverride` and must be
-  copied there at promotion.
+  presets live in README.md as values. LR-3.
+- **No per-module panel colour.** `PanelOverride` has no colour or accent key, so `panel.json` cannot give
+  GUTTR its own colour. LR-4.
 - **The lab CPU probe sends no notes,** so for an instrument it times only the idle path. The active cost
-  above comes from `tests.cpp`.
+  above comes from `tests.cpp`. LR-5.
+- **FFT scratch stays allocated.** The SDK has no prepare-time scratch that can be returned, so 768 KB of
+  each instance's allocation is used only during `prepare`. LR-6.
 - **Render cases send velocity 1 on channel 0 only**, and `evidence.py` requires equal left and right.
   The demos therefore sum `left` and `right` through `essentials.mixer` at 0.5 each. Distinct voice
   channels need `host.keyboard` in the patch (the third demo). The evidence checks cannot tell whether each
-  note got its own value, so `tests.cpp` checks that.
-- **FFT scratch stays allocated.** The SDK has no prepare-time scratch that can be returned, so 768 KB of
-  each instance's allocation is used only during `prepare`.
+  note got its own value, so `tests.cpp` checks that. LR-7.
