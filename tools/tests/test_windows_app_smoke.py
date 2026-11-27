@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Fast tests for Windows build/lifecycle orchestration (no devices)."""
-import os
+import io
 from pathlib import Path
 import subprocess
 import sys
@@ -37,6 +37,7 @@ class WindowsSmokeTests(unittest.TestCase):
         self.assertEqual(calls[2].kwargs["creationflags"], 16)
         self.assertEqual(calls[2].kwargs["stdout"], subprocess.PIPE)
         self.assertEqual(calls[2].kwargs["stderr"], subprocess.STDOUT)
+        self.assertEqual(calls[2].kwargs["env"]["PYTHONIOENCODING"], "utf-8:backslashreplace")
         self.assertTrue(all(c.kwargs["check"] for c in calls))
         self.assertFalse(any("--launch" in c.args[0] for c in calls))
 
@@ -98,3 +99,15 @@ class WindowsSmokeTests(unittest.TestCase):
             members(values)
             with self.subTest(values=values), self.assertRaises(RuntimeError):
                 windows_app_smoke.require_private_console(kernel, worker=10, child=20, parent=40)
+
+    def test_diagnostics_survive_legacy_windows_stdout(self):
+        for encoding in ("cp1252", "utf-8"):
+            with self.subTest(encoding=encoding):
+                raw = io.BytesIO()
+                with io.TextIOWrapper(raw, encoding=encoding, errors="strict") as stream:
+                    windows_app_smoke.forward_diagnostics("Vite \u279c ready", stream)
+                    windows_app_smoke.forward_diagnostics(b"timeout \xe2\x9e\x9c", stream)
+                    output = raw.getvalue().decode(encoding)
+                    expected = "\u279c" if encoding == "utf-8" else r"\u279c"
+                    self.assertIn("Vite " + expected + " ready", output)
+                    self.assertIn("timeout " + expected, output)
