@@ -7,6 +7,7 @@
 #define GROOVE_RESTORE_EMIT
 #endif
 #include "config.h"
+#include "data.h"
 #include "wirescape_sdk.h"
 #include <array>
 #include <cstdint>
@@ -14,6 +15,7 @@
 namespace groove {
 struct Sequencer {
     static constexpr ws::Info info{"sequencing.groove", "Groove", 2};
+    static constexpr std::array data_slots{ws::data_slot<LivePattern>("pattern", "Live pattern", live_pattern_fields)};
     // New inputs append without changing any existing output or parameter slot.
     static constexpr std::array inputs{ws::port("clock", "Clock", WS2_TRIGGER, WS2_FIRST),
                                        ws::port("run", "Run", WS2_GATE, WS2_FIRST),
@@ -73,7 +75,10 @@ struct Sequencer {
         bool short_gate = false;
     };
 
-    Config pattern{};
+    Config pattern{}; // legacy construction-time fallback, never copies the borrowed block
+    uint32_t live_serial = 0, live_tempo = TempoInternal;
+    bool live_valid = false;
+    inline static constexpr Step empty_step{};
     std::array<Player, kTracks> players{};
     std::array<bool, kParams> observed{}, control_high{};
     std::array<bool, kTracks> mod1_active{}, mod2_active{};
@@ -112,6 +117,9 @@ struct Sequencer {
 
     void reset() {
         // Host choke handles active notes. reset() cannot emit.
+        live_serial = 0;
+        live_valid = false;
+        live_tempo = pattern.tempo_source;
         players = {};
         for (uint32_t t = 0; t < kTracks; ++t) {
             players[t].armed = t < pattern.track_count && pattern.tracks[t].armed != 0;
@@ -193,31 +201,40 @@ struct Sequencer {
         default: return false; // validated on the control thread.
         }
     }
-    uint32_t master_steps() const {
+    uint32_t track_length(uint32_t t, const LivePattern *data) const noexcept {
+        return data ? (t == 0 ? data->length_1 : data->length_2) : pattern.tracks[t].length;
+    }
+    const Step &row_at(uint32_t t, uint32_t i, const LivePattern *data) const noexcept {
+        if (!data) return pattern.tracks[t].steps[i];
+        if (t == 0) return i < data->count_1 ? data->steps_1[i] : empty_step;
+        return i < data->count_2 ? data->steps_2[i] : empty_step;
+    }
+    uint32_t master_steps(const LivePattern *data = nullptr) const {
         uint32_t longest = 0;
         for (uint32_t t = 0; t < pattern.track_count; ++t) {
             const auto &player = players[t];
             if (player.playing || player.enter || player.armed)
-                if (pattern.tracks[t].length * pattern.tracks[t].div > longest)
-                    longest = pattern.tracks[t].length * pattern.tracks[t].div;
+                if (track_length(t, data) * pattern.tracks[t].div > longest)
+                    longest = track_length(t, data) * pattern.tracks[t].div;
         }
         // A running transport with all tracks disarmed must still have a defined cycle.
         if (!longest)
             for (uint32_t t = 0; t < pattern.track_count; ++t)
-                if (pattern.tracks[t].length * pattern.tracks[t].div > longest)
-                    longest = pattern.tracks[t].length * pattern.tracks[t].div;
+                if (track_length(t, data) * pattern.tracks[t].div > longest)
+                    longest = track_length(t, data) * pattern.tracks[t].div;
         return longest;
     }
-    double gate_duration(uint32_t track, uint32_t note_step, bool &short_gate) const {
+    double gate_duration(uint32_t track, uint32_t note_step, bool &short_gate,
+                         const LivePattern *data = nullptr) const {
         const auto &pattern_track = pattern.tracks[track];
-        uint32_t last_gate = pattern_track.steps[note_step].gate_q;
+        const auto length = track_length(track, data);
+        uint32_t last_gate = row_at(track, note_step, data).gate_q;
         uint32_t ties = 0;
-        for (uint32_t next = (note_step + 1u) % pattern_track.length;
-             ties + 1u < pattern_track.length &&
-             pattern_track.steps[next].kind == Tie;
-             next = (next + 1u) % pattern_track.length) {
+        for (uint32_t next = (note_step + 1u) % length;
+             ties + 1u < length && row_at(track, next, data).kind == Tie;
+             next = (next + 1u) % length) {
             ++ties;
-            last_gate = pattern_track.steps[next].gate_q;
+            last_gate = row_at(track, next, data).gate_q;
         }
         short_gate = last_gate < 4; // Full-length gates use the legacy boundary release.
         return samples_per_step * pattern_track.div * (static_cast<double>(ties) + last_gate / 4.);
@@ -277,15 +294,15 @@ struct Sequencer {
     }
     bool effective_mute(uint32_t t) const { return muted || players[t].muted; }
 
-    void release_step(ws::Block &b, uint32_t t, uint32_t i) {
+    void release_step(ws::Block &b, uint32_t t, uint32_t i, const LivePattern *data = nullptr) {
         const auto &p = players[t];
         if (!p.playing || effective_mute(t)) return;
-        const auto &row = pattern.tracks[t].steps[step_t[t]];
+        const auto &row = row_at(t, step_t[t], data);
         if (row.kind != Tie || !p.sounding.on) release(b, t, i);
     }
-    void trigger(ws::Block &b, uint32_t t, uint32_t i) {
+    void trigger(ws::Block &b, uint32_t t, uint32_t i, const LivePattern *data = nullptr) {
         auto &p = players[t];
-        const auto &row = pattern.tracks[t].steps[step_t[t]];
+        const auto &row = row_at(t, step_t[t], data);
         const bool continued = p.fired && p.sounding.on;
         p.fired = false;
         if (!p.playing) { p.skipped_cond = false; return; }
@@ -324,20 +341,20 @@ struct Sequencer {
         }
         if (p.sounding.on) {
             p.gate_age = 0.;
-            p.gate_cutoff = gate_duration(t, step_t[t], p.short_gate);
+            p.gate_cutoff = gate_duration(t, step_t[t], p.short_gate, data);
             p.pitch = static_cast<float>(row.key - 60) / 12.f;
             p.mod1 = row.mod1;
             p.mod2 = row.mod2;
         }
     }
 
-    void trigger_all(ws::Block &b, uint32_t i) {
+    void trigger_all(ws::Block &b, uint32_t i, const LivePattern *data = nullptr) {
         // Release every stepping track before any track attacks. Non-stepping
         // tracks retain gate, modulation and fired telemetry unchanged.
         for (uint32_t t = 0; t < kTracks; ++t)
-            if (step % pattern.tracks[t].div == 0) release_step(b, t, i);
+            if (step % pattern.tracks[t].div == 0) release_step(b, t, i, data);
         for (uint32_t t = 0; t < kTracks; ++t)
-            if (step % pattern.tracks[t].div == 0) trigger(b, t, i);
+            if (step % pattern.tracks[t].div == 0) trigger(b, t, i, data);
     }
     bool edge(const ws::Block &b, uint32_t p, uint32_t i) {
         const bool high = b.param(p).value(0, i) > 0.5f;
@@ -348,18 +365,18 @@ struct Sequencer {
     }
     // One sixteenth-note tick. Track wraps are independent, while global STOP
     // waits for the longest armed/running track to realign with the master.
-    void boundary(ws::Block &b, uint32_t i) {
+    void boundary(ws::Block &b, uint32_t i, const LivePattern *data = nullptr) {
         // Sixteenths since Start. Every approved length * divisor divides 512.
         // Non-stepping tracks retain their own current step and loop counter.
         step = (step + 1u) % kClock;
         for (uint32_t t = 0; t < kTracks; ++t) {
             const auto &track = pattern.tracks[t];
             if (step % track.div != 0) continue;
-            step_t[t] = (step / track.div) % track.length;
+            step_t[t] = (step / track.div) % track_length(t, data);
             auto &p = players[t];
             if (p.playing && step_t[t] == 0) ++p.loop;
         }
-        if (step % master_steps() == 0 && stop_queued) {
+        if (step % master_steps(data) == 0 && stop_queued) {
             release_all(b, i);
             running = stop_queued = reset_wait = false;
             for (auto &p : players) {
@@ -369,7 +386,7 @@ struct Sequencer {
         }
         for (uint32_t t = 0; t < kTracks; ++t) {
             auto &p = players[t];
-            if (p.stop && step % (pattern.tracks[t].length * pattern.tracks[t].div) == 0) {
+            if (p.stop && step % (track_length(t, data) * pattern.tracks[t].div) == 0) {
                 release(b, t, i);
                 p.playing = p.armed = p.stop = p.enter = p.fired = p.skipped_cond = false;
             } else if (p.enter && (pattern.authored_version == 1 ? step % 32u == 0 : step % 16u == 0)) {
@@ -380,7 +397,7 @@ struct Sequencer {
             }
         }
     }
-    void start_transport(ws::Block &b, uint32_t i) {
+    void start_transport(ws::Block &b, uint32_t i, const LivePattern *data = nullptr) {
         running = true;
         stop_queued = reset_wait = run_start_pending = false;
         phase = 0.;
@@ -393,9 +410,35 @@ struct Sequencer {
             p.loop = 1;
             p.rng = seed_for(t);
         }
-        trigger_all(b, i);
+        trigger_all(b, i, data);
     }
     void process(ws::Block &b) {
+        uint32_t serial = 0;
+        const auto *data = b.data<LivePattern>(0, serial);
+        if (serial != live_serial) {
+            live_serial = serial;
+            const bool previously_live = live_valid;
+            live_valid = data && live_pattern_bounds(*data);
+            // Recompute only bounded derived flags, never retain the block or
+            // restart the player. Current gate, RNG, loop and phase survive.
+            if (live_valid || previously_live) {
+                for (uint32_t t = 0; t < kTracks; ++t) {
+                    mod1_active[t] = mod2_active[t] = false;
+                    const auto *view = live_valid ? data : nullptr;
+                    for (uint32_t i = 0; i < track_length(t, view) && t < pattern.track_count; ++i) {
+                        mod1_active[t] |= row_at(t, i, view).mod1 != 0.f;
+                        mod2_active[t] |= row_at(t, i, view).mod2 != 0.f;
+                    }
+                }
+            }
+            const uint32_t tempo = live_valid ? data->tempo_source : pattern.tempo_source;
+            if (tempo != live_tempo) {
+                host_seen = host_was_playing = false;
+                if (tempo == TempoInternal && !clock_connected) samples_per_step = internal_samples_per_step;
+                live_tempo = tempo;
+            }
+        }
+        if (!live_valid) data = nullptr;
         const bool external_clock = b.in(0).connected();
         const bool external_run = b.in(1).connected();
         const bool external_reset = b.in(2).connected();
@@ -423,7 +466,8 @@ struct Sequencer {
             for (uint32_t p = 0; p < 4; ++p) {
                 b.out(base + p).set_channels(1);
                 const bool constant =
-                    t >= pattern.track_count || (p == 2 && !mod1_active[t]) || (p == 3 && !mod2_active[t]);
+                    t >= pattern.track_count || (p == 2 && !mod1_active[t] && (!data || players[t].mod1 == 0.f)) ||
+                    (p == 3 && !mod2_active[t] && (!data || players[t].mod2 == 0.f));
                 b.out(base + p).mark_constant(constant);
             }
             b.out(base + 4).set_channels(0);
@@ -435,7 +479,7 @@ struct Sequencer {
         // Host tempo source (M3 TR2): an external clock cable still wins. The source is chosen
         // once per block and the frame loop is instantiated per source, so the default internal
         // source compiles to the same per-sample path as before.
-        if (pattern.tempo_source == TempoHost && !external_clock) {
+        if ((data ? data->tempo_source : pattern.tempo_source) == TempoHost && !external_clock) {
             const ws2_transport *host = b.transport();
             const bool host_playing = host && (host->flags & WS2_PLAYING) && host->bpm > 0.;
             double host_step = 0.;
@@ -443,14 +487,14 @@ struct Sequencer {
                 samples_per_step = b.sample_rate() * 15. / host->bpm;
                 host_step = host->bpm * 4. / (60. * b.sample_rate());
             }
-            frames<true>(b, external_clock, external_run, external_reset, host, host_playing, host_step);
+            frames<true>(b, data, external_clock, external_run, external_reset, host, host_playing, host_step);
         } else {
-            frames<false>(b, external_clock, external_run, external_reset, nullptr, false, 0.);
+            frames<false>(b, data, external_clock, external_run, external_reset, nullptr, false, 0.);
         }
     }
     // NOLINTNEXTLINE(bugprone-easily-swappable-parameters): mirrors the per-block locals of process().
     template <bool HostMode>
-    void frames(ws::Block &b, bool external_clock, bool external_run, bool external_reset,
+    void frames(ws::Block &b, const LivePattern *data, bool external_clock, bool external_run, bool external_reset,
                 [[maybe_unused]] const ws2_transport *host, [[maybe_unused]] bool host_playing,
                 [[maybe_unused]] double host_step) {
         const bool clocked = HostMode || external_clock;
@@ -563,14 +607,14 @@ struct Sequencer {
                     if (running) stop_queued = false;
                     else if constexpr (HostMode) run_start_pending = true; // Step 1 lands on the host grid.
                     else {
-                        start_transport(b, i);
+                        start_transport(b, i, data);
                         started = true;
                     }
                 }
                 if (run_start_pending && !running && !clocked) phase += 1.;
                 if (run_start_pending && !running && !run_rise &&
                     (clocked ? tick : phase >= samples_per_step)) {
-                    start_transport(b, i);
+                    start_transport(b, i, data);
                     started = true;
                 }
                 if (running && !started) {
@@ -584,9 +628,9 @@ struct Sequencer {
                                 step_t.fill(0);
                                 reset_wait = false;
                             } else {
-                                boundary(b, i);
+                                boundary(b, i, data);
                             }
-                            if (running) trigger_all(b, i);
+                            if (running) trigger_all(b, i, data);
                         }
                     }
                 }
