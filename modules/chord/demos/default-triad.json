@@ -1,6 +1,6 @@
 {
   "SPDX-License-Identifier": "GPL-3.0-only",
-  "name": "Chord default triad through note-driven voice and envelope",
+  "name": "Keyboard to Chord to Notes to CV: default triad",
   "rate": 48000,
   "block": 128,
   "seconds": 2,
@@ -53,17 +53,33 @@
         "module": "essentials.output",
         "version": 2,
         "parameters": {}
+      },
+      {
+        "id": 6,
+        "module": "host.keyboard",
+        "version": 1,
+        "parameters": {
+          "voices": 4
+        }
+      },
+      {
+        "id": 7,
+        "module": "essentials.notes_to_cv",
+        "version": 1,
+        "parameters": {
+          "voices": 4
+        }
       }
     ],
     "connections": [
       {
         "kind": "event",
         "from": {
-          "module": 1,
+          "module": 6,
           "port": "notes"
         },
         "to": {
-          "module": 2,
+          "module": 1,
           "port": "notes"
         }
       },
@@ -74,8 +90,30 @@
           "port": "notes"
         },
         "to": {
-          "module": 3,
+          "module": 7,
           "port": "notes"
+        }
+      },
+      {
+        "kind": "signal",
+        "from": {
+          "module": 7,
+          "port": "pitch"
+        },
+        "to": {
+          "module": 2,
+          "port": "pitch"
+        }
+      },
+      {
+        "kind": "signal",
+        "from": {
+          "module": 7,
+          "port": "gate"
+        },
+        "to": {
+          "module": 3,
+          "port": "gate"
         }
       },
       {
@@ -129,13 +167,13 @@
     {
       "frame": 12000,
       "type": "noteOn",
-      "node": 1,
+      "node": 6,
       "key": 60
     },
     {
       "frame": 48000,
       "type": "noteOff",
-      "node": 1,
+      "node": 6,
       "key": 60
     }
   ],

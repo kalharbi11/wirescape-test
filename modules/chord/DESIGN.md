@@ -18,10 +18,10 @@ The tests-first commit adds exact descriptor flags, effective signal reads
 at offsets 0 and 17 for all eight parameters, retained release identities,
 1 and 16 host channels, allocation checks and engine modulation connection
 acceptance. Original pinned identity, capacity, reset and graph tests remain.
-The offline demo exercises default chord expansion into VCO/ADSR/VCA;
+The offline demo routes host.keyboard notes through Chord and Notes to CV,
+then uses allocated pitch/gate lanes to drive VCO/ADSR/VCA;
 wstest identical must compare the unmodulated output with the pristine pin.
 
 ## Limitations
 No new lab changes or workarounds. Original instance-tag alias and activation
-capacity limits remain as documented in README. Local build and test execution
-were unavailable in the authoring environment; require T0/T1 on the PR head.
+capacity limits remain as documented in README. Hosted CI is the routine verification environment. Require T0/T1 on the PR head.
