@@ -411,8 +411,61 @@ static void s73_alias_rows() {
     REQUIRE(all_pass);
 }
 
+
+static void mod9_stepped_streams() {
+    const auto* d = ws::Module<chaos_lite::ChaosLite>::descriptor();
+    REQUIRE(d->param_count == 27 && d->input_count == 4 && d->output_count == 2);
+    constexpr uint32_t slots[] = {3, 4, 9, 22, 26};
+    constexpr float low[] = {-3.f, -3.f, 0.f, 0.f, 0.f};
+    constexpr float high[] = {3.f, 3.f, 2.f, 2.f, 3.f};
+    constexpr float initial[] = {0.f, -1.f, 0.f, 0.f, 0.f};
+    for (uint32_t k = 0; k < 5; ++k) {
+        const auto& p = d->params[slots[k]];
+        REQUIRE(p.flags == (WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE));
+        REQUIRE(p.minimum == low[k] && p.maximum == high[k] &&
+                p.initial == initial[k] && p.step == 1.f);
+    }
+    for (uint32_t channels : {1u, 16u}) for (uint32_t k = 0; k < 5; ++k) {
+        Rig stream(48000, channels), scalar(48000, channels), baseline(48000, channels);
+        for (Rig* r : {&stream, &scalar, &baseline}) {
+            r->values[20] = 12.f;
+            r->values[21] = 1.f;
+            r->values[23] = 0.f;
+            for (uint32_t c = 0; c < channels; ++c) r->input_values[0][c] = .02f * float(c);
+            r->run(256);
+        }
+        const uint32_t slot = slots[k];
+        float effective[Rig::max_frames]{};
+        for (uint32_t i = 0; i < Rig::max_frames; ++i) {
+            const uint32_t segment = i / 64;
+            effective[i] = segment == 0 ? low[k] : segment == 1 ? high[k] :
+                           segment == 2 ? low[k] + 1.f : high[k] - 1.f;
+        }
+        const float* row = effective;
+        stream.params[slot] = {sizeof(ws2_signal), &row, 1, 0};
+        stream.run(Rig::max_frames);
+        baseline.run(Rig::max_frames);
+        bool changed = false;
+        for (uint32_t i = 0; i < Rig::max_frames; ++i) {
+            scalar.values[slot] = effective[i];
+            scalar.run(1);
+            for (uint32_t side = 0; side < 2; ++side) for (uint32_t c = 0; c < channels; ++c) {
+                const float actual = stream.buffers->out[side][c][i];
+                REQUIRE(actual == scalar.buffers->out[side][c][0]);
+                changed = changed || actual != baseline.buffers->out[side][c][i];
+            }
+        }
+        REQUIRE(changed);
+        REQUIRE(stream.save() == scalar.save());
+        const auto saved = stream.save();
+        REQUIRE(baseline.load(saved) == WS2_OK);
+        REQUIRE(baseline.save() == saved);
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc == 2 && std::string(argv[1]) == "--benchmark") return benchmark();
+    mod9_stepped_streams();
     matrix();
     state_and_extremes();
     components();
