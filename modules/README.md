@@ -17,7 +17,7 @@ One row per folder in `modules/`. Specs are in lab
 | `macro` | `essentials.macro` | new | §3.1 | MOD-5 (#8) | 1 | T1 |
 | `guttr` | `guttr` | new | owner package (lab `docs/context/future_modules/guttur`) | GUTTR (#38) | — | T1 |
 | `rhythm_lanes` | `sequencing.rhythm_lanes` | new | §4.4 (original design) | MOD-6 (#25) | 2 | T1 |
-| `midi_to_cv` | `midi.to_cv` | override | §4.6 batch A, performance modulation | MOD-7 (#31) | 2 | blocked: LR-12 (PR #47); new-pin pretest green |
+| `midi_to_cv` | `midi.to_cv` | override | §4.6 batch A, performance modulation | MOD-7 (#31) | 2 | T1; active offline demo awaits LR-13 |
 | `chord` | `essentials.chord` | override | §4.6 enable/shift modulation | MOD-7 (#26) | 2 | T1 |
 | `notes_to_cv` | `essentials.notes_to_cv` | override | §4.6 batch A, setParam-only voices audit | MOD-7 (#33) | 2 | T1 |
 | `midi_in` | `midi.in` | override | §4.6 batch A, setParam-only filter audit | MOD-7 (#32) | 2 | T1 |
