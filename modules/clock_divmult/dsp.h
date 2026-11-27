@@ -36,7 +36,6 @@ struct ClockDivMult {
     static constexpr int kRatio[19] = {-16, -12, -8, -7, -6, -5, -4, -3, -2, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16};
     static constexpr uint32_t kDefault[4] = {10, 8, 6, 2};
     static constexpr double kMaxGate = 2147483647.;
-    static constexpr uint32_t kOpen = 0xFFFFFFFFu;  // a gate that ends in beats, not samples
 
     struct Out {
         uint32_t ratio = 0;     // the latched ratio index (applies to the period in progress)
@@ -44,7 +43,7 @@ struct ClockDivMult {
         int64_t index = 0;      // the period of the latched ratio that the position is in
         uint32_t left = 0;      // samples of gate left (tempo known)
         uint32_t delayed = 0;   // a start delayed one sample because the gate was still high: its length
-        double end_beat = 0;    // gate end (position in beats) while the tempo is unknown
+        double end_beat = -1;   // tempo unknown: the gate also ends at this position (beats); -1 none
         bool high = false;      // the last sample's output
     };
 
@@ -93,16 +92,12 @@ struct ClockDivMult {
     void start(Out &o, double position, float width_value) noexcept {
         const double w = std::clamp(std::isfinite(width_value) ? double(width_value) : .5, double(.01f), double(.99f));
         const double beats = period_beats(o.ratio);
-        uint32_t len = 0;
-        o.end_beat = 0;
-        if (tempo_known()) {
-            const double period = beats * beat.samples_per_beat();
-            const double cap = std::max(1., std::floor(period) - 1.);
-            len = static_cast<uint32_t>(std::min(std::clamp(std::round(w * period), 1., cap), kMaxGate));
-        } else {
-            len = kOpen;                     // ends in beats (edge by edge) until the tempo is known
-            o.end_beat = position + w * beats;
-        }
+        // Samples per beat: measured (or the transport's); before the second edge, the beat clock's
+        // estimate (120 BPM until measured), and the gate also ends where its width runs out in beats.
+        const double period = beats * beat.samples_per_beat();
+        const double cap = std::max(1., std::floor(period) - 1.);
+        const uint32_t len = static_cast<uint32_t>(std::min(std::clamp(std::round(w * period), 1., cap), kMaxGate));
+        o.end_beat = tempo_known() ? -1. : position + w * beats;
         if (o.high) {
             o.left = 0;
             o.delayed = len;
@@ -141,7 +136,8 @@ struct ClockDivMult {
             bool fire_all = false;
             double position = 0;
             if (connected) {
-                if (entered || reset_edge) armed = true;
+                if (entered) armed = true, edges = 0;  // (re)patched: re-measure the tempo
+                if (reset_edge) armed = true;
                 if (edge && edges < 2) ++edges;
                 if (edge && armed) {
                     armed = false;
@@ -163,7 +159,7 @@ struct ClockDivMult {
                     o.left = o.delayed;
                     o.delayed = 0;
                 }
-                if (o.left == kOpen && position >= o.end_beat - 1e-9) o.left = 0;  // tempo unknown: ends in beats
+                if (o.end_beat >= 0 && o.left && position >= o.end_beat - 1e-9) o.left = 0;  // tempo unknown
                 if (fire_all) {
                     o.ratio = o.pending;
                     o.index = period_index(position, o.ratio);
@@ -183,7 +179,7 @@ struct ClockDivMult {
                     }
                 }
                 const bool on = o.left > 0;
-                if (on && o.left != kOpen) --o.left;
+                if (on) --o.left;
                 o.high = on;
                 b.out(k).ch(0)[i] = on ? 1.f : 0.f;
             }
@@ -233,7 +229,8 @@ struct ClockDivMult {
             if (!r.u32(o.ratio) || !r.u32(o.pending) || !get64(r, index) || !r.u32(o.left) || !r.u32(o.delayed) ||
                 !getd(r, o.end_beat) || !r.u32(high))
                 return WS2_INVALID;
-            if (o.ratio > 18 || o.pending > 18 || high > 1 || !std::isfinite(o.end_beat)) return WS2_INVALID;
+            if (o.ratio > 18 || o.pending > 18 || high > 1 || !std::isfinite(o.end_beat) || o.end_beat < -1)
+                return WS2_INVALID;
             o.index = int64_t(index);
             o.high = high != 0;
         }

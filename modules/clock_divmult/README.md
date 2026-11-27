@@ -40,6 +40,7 @@ transport when `clock` is not patched. Mono in v1. New module from wirescape-tes
   progress is never cut.
 - **Width:** each gate is `width` × the output period long. It is at least 1 sample, and at most the
   period minus 1, so consecutive gates always have a falling edge. Before the tempo is known (first
-  clock period), a gate ends at the clock edge where its width runs out.
+  clock period), a gate ends at the clock edge where its width runs out, or after its length at
+  120 BPM, whichever comes first.
 
 Demo: `demos/divided-gates.json`. Tests: `python tools/wstest.py t0 clock_divmult` (`abi2_clock_divmult_tests`).

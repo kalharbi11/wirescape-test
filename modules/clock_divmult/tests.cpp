@@ -256,6 +256,17 @@ static void transport_playing_and_stopped() {
     for (uint32_t o = 0; o < 4; ++o) VERIFY(r2.out[o][100] > .5f && r2.out[o][99] < .5f);
 }
 
+// A single trigger (the tempo never measured) still ends its gates: at the 120 BPM estimate.
+static void single_trigger_does_not_stick() {
+    Rig rig;
+    rig.run(pulses({0}, 200000));
+    for (uint32_t o = 0; o < 4; ++o) {
+        VERIFY(starts(rig.out[o], 0, 200000) == 1 && rig.out[o][0] > .5f);
+        VERIFY(rig.out[o].back() < .5f);
+    }
+    // ×2 at width .5 of half a beat at 24000 samples per beat: 6000 samples.
+    VERIFY(rig.out[0][5999] > .5f && rig.out[0][6000] < .5f);
+}
 static void sixteen_channel_host_and_extremes() {
     Rig rig(16);
     rig.run(pulses(steady(0, 64, 8), 512));
@@ -344,6 +355,7 @@ int main() {
     width_extremes();
     ratio_change_mid_period();
     transport_playing_and_stopped();
+    single_trigger_does_not_stick();
     sixteen_channel_host_and_extremes();
     state_round_trip();
     zero_allocations();
