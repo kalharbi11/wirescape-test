@@ -127,6 +127,14 @@ struct Guttr {
             [&](uint32_t first, uint32_t end) {
                 while (first < end) {
                     if (x.ctlLeft == 0) {  // a control tick: sample the parameters at this frame
+                        // The pinned engine supplies one channel for unmodulated/mono
+                        // parameters and multiple channels for poly texture modulation.
+                        // Select topology on the fixed clock, not on host block boundaries.
+                        x.polyGrit = b.param(guttr::growl).channels() > 1 ||
+                                     b.param(guttr::rasp).channels() > 1 ||
+                                     b.param(guttr::shimmer).channels() > 1 ||
+                                     b.param(guttr::jitter).channels() > 1 ||
+                                     b.param(guttr::creak).channels() > 1;
                         x.sample_parameters([&](uint32_t k, uint32_t c) { return read(b, k, c, first); });
                         x.control();
                         x.ctlLeft = guttr::kTick;

@@ -468,6 +468,14 @@ void post_grit_channels() {
         REQUIRE(r->dsp().held_notes() == 2 && finite(r->L) && finite(r->R));
     }
     REQUIRE(!same(a.L, b.L) && !same(a.L, c.L));
+    for (uint32_t block : {1u, 128u, 512u}) {
+        Rig r;
+        ch3(r);
+        r.at(0, note(WS2_NOTE_ON, 48, 0, 1));
+        r.at(37, note(WS2_NOTE_ON, 55, 3, 2));
+        r.run(24000, block, 16);
+        REQUIRE(same(c.L, r.L) && same(c.R, r.R));
+    }
     // Mono texture signals retain the shared-bus mode, regardless of note channel.
     auto mono = [](Rig &r) { r.set(g::grit_after, 1.f); r.set(g::growl, .8f); };
     REQUIRE(same(render_note(0, 1, mono), render_note(3, 16, mono)));
@@ -518,6 +526,7 @@ void note_identity_edges() {
     r.run(512);
     r.at(r.position, note(WS2_NOTE_OFF, 70, 9, 42, 1)); // ID wins over key/channel.
     r.run(128);
+    REQUIRE(r.dsp().find(1, 42) && r.dsp().find(2, 42));
     REQUIRE(r.dsp().find(1, 42)->released && !r.dsp().find(2, 42)->released);
     auto older = anonymous(WS2_NOTE_ON, 60, 3);
     auto newer = older;

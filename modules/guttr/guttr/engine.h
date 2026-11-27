@@ -55,7 +55,7 @@ struct Core {
     std::array<int64_t, 1024> limQ{};
     uint32_t limW = 0, limLook = 120;
     int64_t limIdx = 0, limQh = 0, limQt = 0;
-    bool gritAfter = false;
+    bool gritAfter = false, polyGrit = false;
     double ampSmooth = 0, lowMidEnvelopeCoeff = 0, limiterReleaseCoeff = 0, limiterAttackCoeff = 0;
     double masterGain = 1, masterStep = 0, wetGain = .392, wetStep = 0, gritPre = 1, gritTrim = 1;
     double roomSize = -1, roomDecay = -1, body = 999, air = 999;
@@ -65,6 +65,9 @@ struct Core {
     uint32_t idleTicks = 0, idleNeeded = 64;
     double busPeak = 0;
     double dryL[kTick]{}, dryR[kTick]{}, send[kTick]{};
+    // Scratch for one channel at a time: only the polyphonic post-grit path uses it.
+    double voiceL[kTick]{}, voiceR[kTick]{}, voiceSend[kTick]{};
+    std::array<double, kChannels> voiceGritPre{}, voiceGritTrim{};
 
     // ------------------------------------------------------------------ prepare and reset
     // `memory` holds Layout::of(rate).total bytes (64-byte aligned); the Core sits at its start.
@@ -103,6 +106,7 @@ struct Core {
         masterGain = db(get(G, level)); masterStep = 0;
         wetGain = get(G, wet) * 1.4; wetStep = 0;
         usedMask = 0;
+        polyGrit = false;
         chChanged.fill(false);
         globalChanged = false;
     }
@@ -111,6 +115,9 @@ struct Core {
         for (int i = 0; i < 2; i++) { lowSh[i].reset(); highSh[i].reset(); lmEq[i].reset(); }
         scLM.reset(); scPR.reset();
         eLM = ePR = 1e-9;
+        // Once the bus is silent, its guard history is no longer meaningful.
+        // Clearing it also makes idle advancement independent of host segmentation.
+        lmCut = lmC = lmCStep = lmRatio = 0;
         std::fill_n(dc, 4, 0.);
         limBL.fill(0); limBR.fill(0); limQ.fill(0); limQv.fill(0);
         limW = 0; limIdx = limQh = limQt = 0; limG = 1;
@@ -161,6 +168,13 @@ struct Core {
             if (n.id) mask |= 1u << n.channel;
         return mask;
     }
+    static double grit_pre(const Params &p) noexcept {
+        return 2.2 + 6 * (get(p, growl) + get(p, rasp) + get(p, shimmer) / 12 + get(p, jitter) / 3 + get(p, creak)) / 3;
+    }
+    void update_voice_grit(uint32_t c) noexcept {
+        voiceGritPre[c] = grit_pre(chP[c]);
+        voiceGritTrim[c] = db(cal.afterTrim) / std::sqrt(voiceGritPre[c]);
+    }
     // read(k, c) returns parameter k on voice channel c at the tick frame (already sanitised).
     template <class Read> void sample_parameters(Read read) noexcept {
         globalChanged = false;
@@ -179,6 +193,7 @@ struct Core {
                 if (v != P[k]) chChanged[c] = true;
                 P[k] = v;
             }
+            if (polyGrit) update_voice_grit(c);
         }
     }
 
@@ -225,6 +240,7 @@ struct Core {
     bool add_note(uint32_t source, int32_t note_id, uint8_t channel, int key, double vel, const Params &desired) noexcept {
         if (!(usedMask & (1u << channel))) {  // an idle channel's snapshot starts at this note's values
             chP[channel] = desired;
+            if (polyGrit) update_voice_grit(channel);
             usedMask |= 1u << channel;
         }
         Note *target = nullptr;
@@ -339,8 +355,9 @@ struct Core {
         if (frame == 0) { masterGain = targetMaster; wetGain = targetWet; }
         masterStep = (targetMaster - masterGain) / n;
         wetStep = (targetWet - wetGain) / n;
-        // Post-grit drive follows the channel-0 texture values (it acts on the mixed bus).
-        gritPre = (2.2 + 6 * (get(G, growl) + get(G, rasp) + get(G, shimmer) / 12 + get(G, jitter) / 3 + get(G, creak)) / 3);
+        // Preserve the package's shared-bus transfer for mono texture signals.
+        // Polyphonic texture signals use the channel-local transfers instead.
+        gritPre = grit_pre(G);
         gritTrim = db(cal.afterTrim) / std::sqrt(gritPre);
         room.control(kTick);
     }
@@ -522,7 +539,7 @@ struct Core {
         wetGain += wetStep;
         room.sample(sendIn, wetL, wetR, wetGain);
         double l = dl_ + wetL, r = dr_ + wetR;
-        if (gritAfter) { l = std::tanh(l * gritPre) * gritTrim; r = std::tanh(r * gritPre) * gritTrim; }
+        if (gritAfter && !polyGrit) { l = std::tanh(l * gritPre) * gritTrim; r = std::tanh(r * gritPre) * gritTrim; }
         l = highSh[0].tick(lowSh[0].tick(l));
         r = highSh[1].tick(lowSh[1].tick(r));
         const double m = .5 * (l + r), a = scLM.tick(m), b = scPR.tick(m);
@@ -565,17 +582,40 @@ struct Core {
         if (!active && busIdle) {
             std::fill_n(left, n, 0.f);
             std::fill_n(right, n, 0.f);
-            lmC += lmCStep * n;
             return true;
         }
         busIdle = false;
         std::fill_n(dryL, n, 0.);
         std::fill_n(dryR, n, 0.);
         std::fill_n(send, n, 0.);
-        // Throats are independent inside a tick, so each renders its run at once (same sums, same order).
-        for (auto &s : singers)
-            if (s.active)
-                for (uint32_t i = 0; i < n; ++i) singer_sample(s, dryL[i], dryR[i], send[i]);
+        // With mono texture signals, preserve the original singer order and shared bus.
+        if (!gritAfter || !polyGrit) {
+            for (auto &s : singers)
+                if (s.active)
+                    for (uint32_t i = 0; i < n; ++i) singer_sample(s, dryL[i], dryR[i], send[i]);
+        } else {
+            // A nonlinear transfer after summation cannot isolate per-channel controls.
+            // Sum throats on their original channel (including fading steals), shape
+            // its stereo dry contribution and room send, then mix in channel order.
+            // Only one channel's scratch is needed, and the room remains shared.
+            uint32_t mask = 0;
+            for (const auto &s : singers) if (s.active) mask |= 1u << s.channel;
+            for (uint32_t c = 0; c < kChannels; ++c) {
+                if (!(mask & (1u << c))) continue;
+                std::fill_n(voiceL, n, 0.);
+                std::fill_n(voiceR, n, 0.);
+                std::fill_n(voiceSend, n, 0.);
+                for (auto &s : singers)
+                    if (s.active && s.channel == c)
+                        for (uint32_t i = 0; i < n; ++i) singer_sample(s, voiceL[i], voiceR[i], voiceSend[i]);
+                const double pre = voiceGritPre[c], trim = voiceGritTrim[c];
+                for (uint32_t i = 0; i < n; ++i) {
+                    dryL[i] += std::tanh(voiceL[i] * pre) * trim;
+                    dryR[i] += std::tanh(voiceR[i] * pre) * trim;
+                    send[i] += std::tanh(voiceSend[i] * pre) * trim;
+                }
+            }
+        }
         for (uint32_t i = 0; i < n; ++i) bus_sample(dryL[i], dryR[i], send[i], left[i], right[i]);
         return false;
     }

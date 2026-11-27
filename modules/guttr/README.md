@@ -78,8 +78,13 @@ its own frame.
 
 Flags: M `MODULATABLE`, A `AUTOMATABLE`, S `STEPPED`; per-voice ones also carry `PER_VOICE`. All tapers
 are linear. `throats` sets how many throats a note allocates, so it is stepped and not modulatable; it is
-read when a note starts. `grit_after` moves the texture (growl, creak, rasp, flutter, jitter, shimmer)
-from each throat onto the mixed bus as a tanh drive.
+read when a note starts. `grit_after` switches growl, creak, rasp, jitter and shimmer to a tanh drive.
+With one-channel texture signals it retains the original drive on the mixed dry/wet bus. If any of
+those five signals is polyphonic, each note channel's summed throats and room send are shaped
+independently before the shared room, then mixed; this avoids channel 0 controlling other channels.
+The shared room, guard and limiter still act on the mix. Flutter, breaks and tail fry are suppressed
+in post-grit mode as in the original synthesis. Switching between mono and poly texture routing
+changes the sound; see DESIGN.md.
 
 ## Presets
 The old package's 11 texture presets, as parameter values (Studio presets are fixed in lab core code, so

@@ -4,7 +4,9 @@
 ## Origin and licence
 GUTTR is the owner's own GUTTUR synthesis, GPL-3.0-only (owner's licence choice of 2026-11-15, recorded in
 the package's `NOTICE.txt`). Source: lab `docs/context/future_modules/guttur/package/` (C++ translation of
-the owner's `guttur-worklet.js`; no third-party code). This folder restructures `src/engine.cpp`,
+the owner's `guttur-worklet.js`; no third-party code). Reference snapshot: lab commit
+`c083b26722b5b4d09e3285ab43f93e93be192f4f` (the workshop pin at the original port).
+This folder restructures `src/engine.cpp`,
 `src/tables.cpp`, `src/tube.cpp`, `src/room.cpp`, `src/internal.h` and `src/reference_constants.h` into
 header-only files under `guttr/`, so that `module.cpp` alone (wsmod C4) and the lab's module catalogue
 both compile it. The synthesis equations are unchanged. Left in the lab folder, not ported: the JS
@@ -51,8 +53,17 @@ per-sample paths, idle bus), `dsp.h` (descriptor, parameter reading, events, pro
   uses starts its snapshot from these values.
 - A tick that sees a channel's values change re-places that channel's throats, as the package did for
   any change. A change of a global value re-places every throat.
-- The post-grit drive amount (`grit_after` on) acts on the mixed bus. So it follows the channel-0 values
-  of `growl`, `rasp`, `shimmer`, `jitter` and `creak`.
+- **Post-grit routing:** the original nonlinear bus transfer cannot isolate per-voice parameters:
+  tanh(a + b) is not tanh(a) + tanh(b). If all five drive controls (growl, rasp, shimmer, jitter,
+  creak) have one-channel signals, preserve the original shared dry/wet bus transfer. If any has
+  multiple channels, select channel-local routing at the fixed control tick. Sum all throats on
+  their event channel, shape that stereo dry contribution and its mono room send using that
+  channel's five values, then sum channels in ascending order and run the shared room, shelves,
+  guard and limiter. This is an intentional poly-only change to the original signal path; the
+  room is driven by shaped sends and is not itself post-shaped. No new parameters or flags.
+  The downstream shared effects still couple the voices. Fading steals keep their old channel
+  until handover. Mode selection follows signal channel count, not the instantaneous values;
+  a poly texture cable may therefore change the sound even if all its values are equal.
 - Reasons for the global set: `distance` and `azimuth` place the whole group in space. `attack`, `release`
   and `glide` stay with the package's ensemble behaviour. `throats` sets allocation. The rest act on the
   shared bus.
@@ -98,11 +109,11 @@ per-sample paths, idle bus), `dsp.h` (descriptor, parameter reading, events, pro
 
   | Part | Size |
   |---|---|
-  | Core: pulse tables 3.35 MB, tube grid 76 KB, 16 throats 42 KB, limiter 32 KB, snapshots 4.7 KB | 3,515,392 B |
+  | Core: pulse tables 3.35 MB, tube grid 76 KB, 16 throats 42 KB, limiter 32 KB, snapshots 4.7 KB, poly-grit scratch/cache 3,328 B | 3,518,720 B |
   | Room lines, 8 × 8192 floats (16384 at 96 kHz) | 256 KB (512 KB) |
   | Early-reflection buffer, 4096 floats (8192 at 96 kHz) | 16 KB (32 KB) |
   | FFT scratch, used only while `prepare` builds the tables | 768 KB |
-  | **Total** at 44.1 and 48 kHz (96 kHz) | **4,580,352 B** (4,858,880 B) |
+  | **Total** at 44.1 and 48 kHz (96 kHz) | **4,583,680 B** (4,862,208 B) |
 - Room line length is the next power of two at or above `2861 × rate / 48000 × 1.6 + 16`. Line 8 at
   `room` 1 is the longest, and the margin covers modulation and interpolation, so a delay never clamps at
   any rate up to the SDK's 384 kHz. The package's fixed 8192-sample lines clamped at 8000 samples above
@@ -115,7 +126,9 @@ per-sample paths, idle bus), `dsp.h` (descriptor, parameter reading, events, pro
   plain fill.
 - The bus goes idle when no throat is active and the bus and room peaks stay below 1e-7 (−140 dBFS) for
   `(room line + look-ahead) / 128 + 4` ticks (68 at 48 kHz). Then the room, shelves, guard, DC blocker
-  and limiter are cleared, and later segments write exact zeros, flagged constant, until a throat starts.
+  and limiter are cleared, including the low-mid guard's envelope, cut and ramp. Later segments write
+  exact zeros, flagged constant, until a throat starts. No residual guard ramp advances on idle
+  host segments; a restart therefore cannot inherit partition-dependent rounding.
   This removes denormal tails and makes silence free.
 
 ## `double` state
@@ -125,7 +138,7 @@ Cortex-M7's FPv5-D16 has double-precision hardware. This covers:
   noise and flutter filters, gains, ITD, drive memory and the pending start and stop times;
 - the bus: biquads, DC blocker, low-mid envelopes, room damping filters, limiter queue and buffers,
   master and wet gains;
-- the core: control time, shared jitter and the parameter snapshots.
+- the core: control time, shared jitter, parameter snapshots and bounded post-grit scratch/coefficients.
 
 Pulse tables, flow and harmonic tables, the tube grid, room lines and ITD lines are `float`. C6 reports
 11 double-precision libm symbols (`cos`, `exp`, `hypot`, `log`, `log10`, `log1p`, `log2`, `pow`, `sin`,
@@ -149,9 +162,10 @@ Pulse tables, flow and harmonic tables, the tube grid, room lines and ITD lines 
    - The ID is `guttr` (was `essentials.guttur`).
    - Parameter names are capitalised, with units, decimals and `legacy_index` = order (all were 0).
    - `grit_after` is now also modulatable.
-   - Rates from 1 Hz to 384 kHz are accepted (the package refused anything outside 44.1–96 kHz). Rates
-     other than 44.1, 48 and 96 kHz are untested.
-2. **Per-voice parameters** (above). With one-channel parameter signals the sound is unchanged.
+   - The supported and tested rates are 44.1, 48 and 96 kHz. Other SDK rates are not validated;
+     in particular, sub-audio rates would require separate filter and limiter validation.
+2. **Per-voice parameters** (above). With one-channel signals the original post-grit transfer is preserved;
+   polyphonic texture signals use channel-local post-grit before the shared room.
 3. **A note-on reads parameters at its own frame.** The package's adapter used the values of the latest
    tick boundary.
 4. **A 17th note steals the oldest record.** The package refused a note-on when all 16 records were held.
@@ -168,7 +182,7 @@ Pulse tables, flow and harmonic tables, the tube grid, room lines and ITD lines 
    these throats fade and the new note adopts them.
 8. **Room lines are sized from the rate** (above). The early-reflection buffer is 4096 at 48 kHz (was
    8192). The output is the same, because every tap is shorter than the buffer.
-9. **Idle bus** at −140 dBFS (above).
+9. **Idle bus** at −140 dBFS (above), including clearing low-mid guard state.
 10. **Removed:** telemetry (cycle history, f0, Rd, jitter and shimmer estimates, peak and RMS, low-mid
     and limiter readouts), the preset trim, `loadPreset` and the atomic `setParam` path.
 11. **Same output, less work:**
