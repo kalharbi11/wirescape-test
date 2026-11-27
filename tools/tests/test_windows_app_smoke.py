@@ -35,6 +35,8 @@ class WindowsSmokeTests(unittest.TestCase):
         self.assertEqual(calls[1].args[0][2:], ["ui", "panel", "--check"])
         self.assertEqual(calls[2].args[0][2:], ["--interrupt-worker", "panel"])
         self.assertEqual(calls[2].kwargs["creationflags"], 16)
+        self.assertEqual(calls[2].kwargs["stdout"], subprocess.PIPE)
+        self.assertEqual(calls[2].kwargs["stderr"], subprocess.STDOUT)
         self.assertTrue(all(c.kwargs["check"] for c in calls))
         self.assertFalse(any("--launch" in c.args[0] for c in calls))
 
@@ -73,3 +75,26 @@ class WindowsSmokeTests(unittest.TestCase):
                 wstest.stop_process(proc)
         proc.kill.assert_called_once()
         proc.wait.assert_called_once_with(timeout=10)
+
+    def test_worker_failure_forwards_console_diagnostics(self):
+        failure = subprocess.CalledProcessError(1, ["worker"], output="worker diagnostic")
+        run = Mock(side_effect=[None, None, failure])
+        with patch("builtins.print") as output:
+            with self.assertRaises(subprocess.CalledProcessError):
+                windows_app_smoke.smoke(["panel"], self.root, run, console_flag=16)
+        self.assertTrue(any("worker diagnostic" in str(c) for c in output.call_args_list))
+
+    def test_console_membership_guard(self):
+        kernel = Mock()
+        def members(values):
+            def fill(buffer, capacity):
+                for index, pid in enumerate(values[:capacity]):
+                    buffer[index] = pid
+                return len(values)
+            kernel.GetConsoleProcessList.side_effect = fill
+        members([10, 20, 30])
+        windows_app_smoke.require_private_console(kernel, worker=10, child=20, parent=40)
+        for values in ([10, 20, 40], [10, 30], [20, 30], []):
+            members(values)
+            with self.subTest(values=values), self.assertRaises(RuntimeError):
+                windows_app_smoke.require_private_console(kernel, worker=10, child=20, parent=40)
