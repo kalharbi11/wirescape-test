@@ -1,0 +1,58 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "id": "essentials.cv_to_notes",
+  "name": "CV to Notes",
+  "category": "MIDI / control",
+  "ports": [
+    {
+      "id": "pitch",
+      "name": "Pitch",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "pitch",
+      "poly": "poly",
+      "stereo_pair": null
+    },
+    {
+      "id": "gate",
+      "name": "Gate",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "gate",
+      "poly": "poly",
+      "stereo_pair": null
+    },
+    {
+      "id": "velocity",
+      "name": "Velocity",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "cv_uni",
+      "poly": "poly",
+      "stereo_pair": null
+    },
+    {
+      "id": "notes",
+      "name": "Notes",
+      "direction": "output",
+      "kind": "event",
+      "hint": "ev_notes",
+      "poly": "poly",
+      "stereo_pair": null
+    }
+  ],
+  "parameters": [
+    {
+      "id": "legato",
+      "name": "Legato",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true
+    }
+  ]
+}

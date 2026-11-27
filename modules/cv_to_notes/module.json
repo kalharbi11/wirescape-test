@@ -1,0 +1,20 @@
+{
+  "schema_version": 2,
+  "id": "essentials.cv_to_notes",
+  "name": "CV to Notes",
+  "abi_version": 2,
+  "library": "ws2_cv_to_notes",
+  "description": "Experimental polyphonic CV pitch and gate to paired note events.",
+  "parameters": {
+    "legato": 0
+  },
+  "inputs": {
+    "pitch": "signal",
+    "gate": "signal",
+    "velocity": "signal"
+  },
+  "outputs": {
+    "notes": "event"
+  },
+  "license": "GPL-3.0-only"
+}
