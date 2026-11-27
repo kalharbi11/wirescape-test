@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <cstdio>
 #include <memory>
 #include <numeric>
@@ -76,8 +77,10 @@ struct Rig {
         values[p] = v;
         return *this;
     }
-    Stereo run(const Samples &l, const Samples &r, uint32_t block = kFrames, bool right_connected = true) {
+    Stereo run(const Samples &l, const Samples &r, uint32_t block = kFrames, bool right_connected = true,
+               const Samples *freeze = nullptr) {
         REQUIRE(l.size() == r.size() && block > 0 && block <= kFrames);
+        REQUIRE(!freeze || freeze->size() == l.size());
         Stereo result;
         result.l.reserve(l.size());
         result.r.reserve(r.size());
@@ -88,11 +91,19 @@ struct Rig {
             inputs[0] = {sizeof(ws2_signal), in_rows[0], 1, WS2_CONNECTED};
             inputs[1] = {sizeof(ws2_signal), in_rows[1], 1, right_connected ? WS2_CONNECTED : 0u};
             ctx.frames = n;
+            if (freeze) {
+                param_rows[reverb::FREEZE] = freeze->data() + pos;
+                params[reverb::FREEZE].flags = n == 1 ? WS2_CONSTANT : 0u;
+            }
             int status = 0;
             {
                 allocation_watch::Scope watch;
                 status = d->process(instance, &ctx);
                 REQUIRE(watch.allocations() == 0);
+            }
+            if (freeze) {
+                param_rows[reverb::FREEZE] = &values[reverb::FREEZE];
+                params[reverb::FREEZE].flags = WS2_CONSTANT;
             }
             REQUIRE(status == WS2_OK && outputs[0].channels == 1 && outputs[1].channels == 1);
             REQUIRE(!(outputs[0].flags & WS2_CONSTANT) && !(outputs[1].flags & WS2_CONSTANT));
@@ -493,9 +504,96 @@ void test_state_extremes_and_sweep() {
     for (float v : out.l) REQUIRE(std::abs(v) <= 2);
     for (float v : out.r) REQUIRE(std::abs(v) <= 2);
 }
+
+void test_batch_b_freeze_effective_rows() {
+    const auto *d = ws::Module<Reverb>::descriptor();
+    REQUIRE(d->param_count == reverb::COUNT);
+    REQUIRE(d->params[reverb::FREEZE].flags ==
+            (WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE));
+    const char *ids[] = {"size", "decay", "damping", "predelay", "width", "motion", "freeze", "mix"};
+    for (unsigned p = 0; p < reverb::COUNT; ++p) {
+        REQUIRE(std::strcmp(d->params[p].id, ids[p]) == 0);
+        REQUIRE(d->params[p].legacy_index == p);
+        if (p != reverb::FREEZE)
+            REQUIRE(d->params[p].flags == (WS2_AUTOMATABLE | WS2_MODULATABLE));
+    }
+    // White-box witness: input drive follows each original 48 kHz tank tick,
+    // not a host block boundary or the first parameter sample of the block.
+    for (double host_rate : {44100., 48000., 96000.}) {
+        Rig fixture(host_rate);
+        Reverb dsp;
+        const ws2_config cfg{sizeof(cfg), host_rate, kFrames, kMaxChannels, 42, nullptr, 0};
+        REQUIRE(dsp.prepare(ws::Setup{cfg, fixture.host}));
+        dsp.reset();
+        Samples left(256, .25f), right(256, -.125f), freeze(256);
+        for (unsigned i = 0; i < 256; ++i)
+            freeze[i] = i < 64 ? .49f : i < 192 ? .5f : 0.f;
+        fixture.in_rows[0][0] = left.data();
+        fixture.in_rows[1][0] = right.data();
+        for (unsigned p = 0; p < 2; ++p)
+            fixture.inputs[p] = {sizeof(ws2_signal), fixture.in_rows[p], 1, WS2_CONNECTED};
+        fixture.param_rows[reverb::FREEZE] = freeze.data();
+        fixture.params[reverb::FREEZE].flags = 0;
+        fixture.ctx.frames = 256;
+        { allocation_watch::Scope watch;
+          ws::Block block(fixture.ctx);
+          dsp.process(block);
+          REQUIRE(watch.allocations() == 0); }
+        const double ratio = 48000. / host_rate;
+        double phase = ratio < 1. ? 1. - ratio : 0.;
+        unsigned tick = 0;
+        float amount = 0.f;
+        const float step = 1.f / (48000.f * .02f);
+        for (unsigned i = 0; i < 256; ++i) {
+            phase += ratio;
+            while (phase >= 1.) {
+                const float target = freeze[i] >= .5f ? 1.f : 0.f;
+                amount += std::clamp(target - amount, -step, step);
+                REQUIRE(std::abs(dsp.pre[0][tick] - left[i] * (1.f - amount)) < 1e-6f);
+                REQUIRE(std::abs(dsp.pre[1][tick] - right[i] * (1.f - amount)) < 1e-6f);
+                ++tick;
+                phase -= 1.;
+            }
+        }
+        REQUIRE(dsp.sample_counter == tick && dsp.pre_write == tick);
+        REQUIRE(std::abs(dsp.freeze_amount - amount) < 1e-6f);
+        { allocation_watch::Scope watch; dsp.reset(); REQUIRE(watch.allocations() == 0); }
+        REQUIRE(dsp.freeze_amount == 0.f && dsp.pre_write == 0 && dsp.sample_counter == 0);
+    }
+    // Registered descriptor callback: varying effective rows must match a
+    // one-host-sample constant-row oracle at the same absolute frame schedule.
+    // WS2_SUM input is already summed by the host; outputs stay one voice.
+    const Samples x = noise(8192, .25f);
+    Samples freeze(x.size(), 0.f);
+    std::fill(freeze.begin() + 67, freeze.begin() + 4099, 1.f);
+    for (double rate : {44100., 48000., 96000.}) {
+        for (unsigned channels : {1u, 16u}) {
+            Rig varying(rate, channels), reference(rate, channels), unfrozen(rate, channels);
+            for (Rig *rig : {&varying, &reference, &unfrozen})
+                rig->set(reverb::MIX, 1.f);
+            const Stereo a = varying.run(x, x, 127, true, &freeze);
+            const Stereo b = reference.run(x, x, 1, true, &freeze);
+            const Stereo c = unfrozen.run(x, x, 127);
+            REQUIRE(a.l == b.l && a.r == b.r);
+            REQUIRE(a.l != c.l || a.r != c.r);
+            for (float v : a.l) REQUIRE(std::abs(v) <= 2.f);
+            for (float v : a.r) REQUIRE(std::abs(v) <= 2.f);
+            const Bytes state = varying.save();
+            REQUIRE(state == reference.save() && state.size() == 4);
+            REQUIRE(varying.load(state) == WS2_OK);
+            { allocation_watch::Scope watch; reference.d->reset(reference.instance);
+              REQUIRE(watch.allocations() == 0); }
+            const Stereo after = varying.run(x, x, 127);
+            const Stereo fresh = reference.run(x, x, 127);
+            REQUIRE(after.l == fresh.l && after.r == fresh.r);
+        }
+    }
+    std::puts("PASS reverb batch B freeze effective rows and original tank cadence");
+}
 } // namespace
 int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
+    test_batch_b_freeze_effective_rows();
     test_lengths_and_rates();
     test_frame_and_reset();
     test_mix_loudness();
