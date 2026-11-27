@@ -1,6 +1,90 @@
 SPDX-License-Identifier: GPL-3.0-only
 GUTTR Studio proposal against the lab at LAB_PIN; see README.md.
 
+--- a/apps/studio/src/canvas/ModuleCard.ts
++++ b/apps/studio/src/canvas/ModuleCard.ts
+@@ -44,6 +44,12 @@
+   priority?: string[];
+   /** `cc`: each port carries an editable MIDI CC number in its label. */
+   assign?: 'cc';
++  /**
++   * Input side only: more modulatable parameters that can get a node. A + / − under the
++   * parameter nodes reveals them one at a time, in this order (patch `ui.paramsShown`;
++   * none at first). A parameter something modulates keeps its node whatever the count.
++   */
++  params?: string[];
+ }
+ 
+ /** Short module code for the header: `VCF`, `LFO`, `MO` (DESIGN §7 header A). */
+@@ -358,8 +364,23 @@
+     const id = this.o.moduleId;
+     const modulated = new Set(this.o.host.doc.connections
+       .filter(c => c.kind === 'modulation' && c.to.module === id).map(c => c.to.port));
++    const essential = new Set([...this.essentialParams(), ...this.extraParams().slice(0, this.paramsShown())]);
++    return d.parameters.filter(p => p.modulatable && (essential.has(p.id) || modulated.has(p.id)));
++  }
++
++  /** The override's extra parameter nodes (`ports.input.params`): modulatable, not already essential. */
++  private extraParams(): string[] {
++    const d = this.o.descriptor;
++    if (!d) return [];
+     const essential = new Set(this.essentialParams());
+-    return d.parameters.filter(p => p.modulatable && (essential.has(p.id) || modulated.has(p.id)));
++    const ids = [...new Set(this.railOpt('input').params ?? [])];
++    return ids.filter(id => !essential.has(id) && d.parameters.some(p => p.id === id && p.modulatable));
++  }
++
++  /** How many extra parameter nodes the + has revealed (patch `ui.paramsShown`, default 0). */
++  private paramsShown(): number {
++    const n = this.uiMap<number>('paramsShown').input ?? 0;
++    return Math.max(0, Math.min(this.extraParams().length, n));
+   }
+ 
+   private essentialParams(): string[] {
+@@ -390,6 +411,8 @@
+       for (const p of shown) next[dir].push({ dir, id: p.id, node: this.portNode(dir, p) });
+       if (dir === 'input') {
+         for (const p of this.paramNodes()) next.input.push({ dir, id: p.id, param: true, node: this.paramNode(p) });
++        const extra = this.extraParams().length;
++        if (extra) next.input.push({ dir, id: '__pctl', ctl: true, node: this.paramCtl(this.paramsShown(), extra) });
+       }
+       if (collapsible) next[dir].push({ dir, id: '__ctl', ctl: true, node: this.railCtl(dir, shown.length, list.length) });
+     }
+@@ -480,6 +503,34 @@
+       this.nodePool.set(k, node);
+     }
+     node.querySelector('.pc-count')!.textContent = `${shown}/${total}`;
++    return node;
++  }
++
++  /** + / − under the parameter nodes: reveal or hide the override's extra parameter nodes. */
++  private paramCtl(shown: number, total: number): HTMLElement {
++    const k = 'ctl:params';
++    let node = this.nodePool.get(k);
++    if (!node) {
++      node = el('div', 'port-ctl input params');
++      const less = el('button', 'pc-btn', '−');
++      const more = el('button', 'pc-btn', '+');
++      less.dataset.testid = `params-less-${this.o.moduleId}`;
++      more.dataset.testid = `params-more-${this.o.moduleId}`;
++      less.title = 'Hide a parameter input'; more.title = 'Show another parameter input';
++      less.setAttribute('aria-label', less.title); more.setAttribute('aria-label', more.title);
++      const count = el('span', 'pc-count');
++      node.append(less, count, more);
++      const step = (d: number) => {
++        this.setUi('paramsShown', 'input', Math.max(0, Math.min(this.extraParams().length, this.paramsShown() + d)));
++        this.syncPorts();
++      };
++      less.addEventListener('pointerdown', e => { e.stopPropagation(); step(-1); });
++      more.addEventListener('pointerdown', e => { e.stopPropagation(); step(1); });
++      this.nodePool.set(k, node);
++    }
++    node.querySelector('.pc-count')!.textContent = `${shown}/${total}`;
++    (node.firstElementChild as HTMLButtonElement).disabled = shown === 0;
++    (node.lastElementChild as HTMLButtonElement).disabled = shown === total;
+     return node;
+   }
+ 
 --- a/apps/studio/src/panels/PanelBuilder.ts
 +++ b/apps/studio/src/panels/PanelBuilder.ts
 @@ -6,7 +6,7 @@
@@ -474,6 +558,17 @@ GUTTR Studio proposal against the lab at LAB_PIN; see README.md.
  .section-label {
    align-self: stretch; font: 500 8.5px var(--mono); letter-spacing: 0.09em; text-transform: uppercase;
    color: var(--mute); border-top: 0.5px solid var(--hair2); padding-top: 6px;
+@@ -290,6 +308,10 @@
+   font: 500 10px/12px var(--mono); color: var(--ink); padding: 0; cursor: pointer;
+ }
+ .pc-btn:hover { background: var(--ink); color: var(--card); }
++.pc-btn:disabled { opacity: .35; cursor: default; background: var(--card); color: var(--ink); }
++/* The parameter-node + / − sits among the rust parameter nodes. */
++.port-ctl.params .pc-btn { border-color: var(--rust); color: var(--rust); }
++.port-ctl.params .pc-btn:hover:not(:disabled) { background: var(--rust); color: var(--card); }
+ .pc-count { min-width: 22px; text-align: center; font-variant-numeric: tabular-nums; }
+ .cc-label { pointer-events: auto; cursor: text; border-bottom: 1px dotted var(--mute); }
+ .cc-input { width: 34px; font: 500 8px var(--mono); border: 0; border-bottom: 1px solid var(--ink); background: transparent; padding: 0; color: var(--ink); }
 --- a/apps/studio/src/styles/controls.css
 +++ b/apps/studio/src/styles/controls.css
 @@ -114,3 +114,36 @@

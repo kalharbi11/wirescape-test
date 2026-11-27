@@ -176,5 +176,13 @@
   "modPorts": [
     "vowel",
     "pressure"
-  ]
+  ],
+  "ports": {
+    "input": {
+      "params": [
+        "breath",
+        "growl"
+      ]
+    }
+  }
 }

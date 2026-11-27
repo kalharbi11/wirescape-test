@@ -68,6 +68,15 @@ All additions are optional, so existing panel overrides render exactly as before
 | role and widget `slider` | `Role`, `WidgetKind` | the new horizontal slider (`widgets/Slider.ts`) |
 | `columns` on sliders | `PanelSection` | a row made only of sliders stacks them, in `columns` columns (default 1) |
 | a grid's `label` | `PanelBuilder` | names the whole group (VOICE), set in ink as a group heading |
+| `ports.input.params: string[]` | `RailOptions` (`ModuleCard`) | more modulatable parameters that can get a rail node; a rust **− n/N +** under the parameter nodes reveals them one at a time |
+
+**More parameter inputs (+).** Pressure and Vowel (`modPorts`) always have a node on the left rail.
+The parameters in `ports.input.params` (here Breath and Growl, placeholders the owner will choose) can
+be shown with the + under the parameter nodes and hidden again with −. The count (`0/2`, `1/2`, …) is
+saved in the patch as `ui.paramsShown`, the same way the existing port +/− saves `ui.portsShown`.
+A parameter that is being modulated keeps its node whatever the count. Nodes stay in parameter order.
++ is disabled at the end of the list and − at zero. Modules without `params` show no extra control.
+To expose other parameters, edit the list in `panel.json`; only modulatable IDs are taken.
 
 **The slider** has the vertical fader's behaviour. Pressing the track jumps to that point and drags;
 dragging the thumb moves relative to it, with Shift for fine control. The wheel and arrow keys nudge,
@@ -82,7 +91,7 @@ so content is never squeezed.
 | File | What |
 |---|---|
 | `panel.json` | the proposed GUTTR layout, in the extended schema |
-| `lab/apps/studio/src/…` | full copies of the five Studio files as proposed (four pinned files edited, `widgets/Slider.ts` new), at their lab paths |
+| `lab/apps/studio/src/…` | full copies of the six Studio files as proposed (five pinned files edited, `widgets/Slider.ts` new), at their lab paths |
 | `lab.patch` | the same changes as a unified diff against `LAB_PIN`, for review; `git apply --check` is clean on the pin |
 | `BASE.json` | SHA-256 of each pinned file the proposal started from; the preview stops if a pin bump changed one |
 | `preview.py` | applies the proposal to `build/app-<sha7>/` and serves it, screenshots it, type-checks it, or rewrites `lab.patch` |
@@ -106,7 +115,10 @@ Electron. If Playwright's pinned browser is missing, point `WIRESCAPE_CHROMIUM` 
   - clicking the Throats track at 0, 33, 61 and 97 % gives 1, 3, 5 and 8;
   - dragging the Growl thumb by 60 px gives 0.6;
   - typing 12 into Tremor's value gives 12;
-  - VCF, Macro Oscillator, ADSR and Groove cards load beside GUTTR with no errors.
+  - VCF, Macro Oscillator, ADSR and Groove cards load beside GUTTR with no errors;
+  - parameter nodes start as Pressure and Vowel at 0/2; + gives Breath (1/2), + again gives Growl
+    (2/2), and a third + stays at 2/2; − twice returns to 0/2; with a cable on Growl at 0/2, Growl
+    keeps its node.
 - Lab Studio Playwright specs on the patched Studio: `conditional-controls`, `kit-controls`,
   `macro-panel`, `module-presets`, `quad-vca`, `mixer-output`, `curated`, `review-35` → 43 passed.
 
