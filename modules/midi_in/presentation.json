@@ -1,0 +1,101 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "id": "midi.in",
+  "name": "MIDI In",
+  "category": "MIDI / control",
+  "ports": [
+    {
+      "id": "midi",
+      "name": "MIDI",
+      "direction": "output",
+      "kind": "event",
+      "hint": "ev_midi",
+      "poly": "poly",
+      "stereo_pair": null
+    }
+  ],
+  "parameters": [
+    {
+      "id": "channel_filter",
+      "name": "Channel (0 = Omni)",
+      "minimum": 0,
+      "maximum": 16,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 3,
+      "modulatable": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Omni"
+        },
+        {
+          "value": 1,
+          "label": "Channel 1"
+        },
+        {
+          "value": 2,
+          "label": "Channel 2"
+        },
+        {
+          "value": 3,
+          "label": "Channel 3"
+        },
+        {
+          "value": 4,
+          "label": "Channel 4"
+        },
+        {
+          "value": 5,
+          "label": "Channel 5"
+        },
+        {
+          "value": 6,
+          "label": "Channel 6"
+        },
+        {
+          "value": 7,
+          "label": "Channel 7"
+        },
+        {
+          "value": 8,
+          "label": "Channel 8"
+        },
+        {
+          "value": 9,
+          "label": "Channel 9"
+        },
+        {
+          "value": 10,
+          "label": "Channel 10"
+        },
+        {
+          "value": 11,
+          "label": "Channel 11"
+        },
+        {
+          "value": 12,
+          "label": "Channel 12"
+        },
+        {
+          "value": 13,
+          "label": "Channel 13"
+        },
+        {
+          "value": 14,
+          "label": "Channel 14"
+        },
+        {
+          "value": 15,
+          "label": "Channel 15"
+        },
+        {
+          "value": 16,
+          "label": "Channel 16"
+        }
+      ]
+    }
+  ]
+}

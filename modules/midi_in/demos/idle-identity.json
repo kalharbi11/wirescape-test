@@ -1,0 +1,154 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "MIDI In idle identity (no raw MIDI ingress available)",
+  "rate": 48000,
+  "block": 128,
+  "seconds": 1,
+  "seed": 7,
+  "peak_limit": 1.2,
+  "patch": {
+    "format": "wirescape.native.patch",
+    "version": 2,
+    "settings": {
+      "seed": 7,
+      "feedback_block": 16
+    },
+    "name": "MIDI In to MIDI to CV: device-off silence",
+    "modules": [
+      {
+        "id": 1,
+        "module": "essentials.vco",
+        "version": 2,
+        "parameters": {
+          "frequency": 220
+        }
+      },
+      {
+        "id": 2,
+        "module": "essentials.adsr",
+        "version": 2,
+        "parameters": {
+          "attack": 0.005,
+          "decay": 0.04,
+          "sustain": 0.8,
+          "release": 0.05
+        }
+      },
+      {
+        "id": 3,
+        "module": "essentials.vca",
+        "version": 2,
+        "parameters": {
+          "gain": 0.6
+        }
+      },
+      {
+        "id": 4,
+        "module": "essentials.output",
+        "version": 2,
+        "parameters": {}
+      },
+      {
+        "id": 5,
+        "module": "midi.to_cv",
+        "version": 1,
+        "parameters": {}
+      },
+      {
+        "id": 6,
+        "module": "midi.in",
+        "version": 1,
+        "parameters": {}
+      }
+    ],
+    "connections": [
+      {
+        "kind": "signal",
+        "from": {
+          "module": 5,
+          "port": "pitch"
+        },
+        "to": {
+          "module": 1,
+          "port": "pitch"
+        }
+      },
+      {
+        "kind": "signal",
+        "from": {
+          "module": 5,
+          "port": "gate"
+        },
+        "to": {
+          "module": 2,
+          "port": "gate"
+        }
+      },
+      {
+        "kind": "signal",
+        "from": {
+          "module": 1,
+          "port": "audio"
+        },
+        "to": {
+          "module": 3,
+          "port": "audio"
+        }
+      },
+      {
+        "kind": "signal",
+        "from": {
+          "module": 2,
+          "port": "envelope"
+        },
+        "to": {
+          "module": 3,
+          "port": "gain_cv"
+        }
+      },
+      {
+        "kind": "signal",
+        "from": {
+          "module": 3,
+          "port": "audio"
+        },
+        "to": {
+          "module": 4,
+          "port": "audio"
+        }
+      },
+      {
+        "kind": "event",
+        "from": {
+          "module": 6,
+          "port": "midi"
+        },
+        "to": {
+          "module": 5,
+          "port": "midi"
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "module": 4,
+        "port": "audio",
+        "bus_channel": 0
+      },
+      {
+        "module": 4,
+        "port": "audio",
+        "bus_channel": 1
+      }
+    ]
+  },
+  "events": [],
+  "windows": [
+    {
+      "kind": "silent",
+      "start": 0,
+      "end": 48000
+    }
+  ],
+  "frequencies": []
+}
