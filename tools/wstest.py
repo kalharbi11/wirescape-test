@@ -8,6 +8,7 @@ Devices stay off: nothing here opens audio, MIDI or a LAN socket.
   fetch                      the lab at LAB_PIN into .lab/<sha>/ (never another commit)
   build <module>...          scratch lab copy + registration + build of the T0 targets
   t0 <module>...             check, build, tests, demo renders, CPU probe, identical (overrides)
+  render <module>            fast offline WAV preview (renderer only, not T0)
   identical <module>...      overrides: byte-identical renders against a pristine build of the pin
   t2 <module>                full lab build and CTest, demo matrix, callgrind, Cortex-M7 (advisory)
   selftest                   T0 on tools/fixtures; outcomes must match tools/fixtures/expected.json
@@ -15,7 +16,9 @@ Devices stay off: nothing here opens audio, MIDI or a LAN socket.
   app <module>...            local convenience (not a test tier): scratch lab copy with panel.json
                              files, engine + Studio + desktop build; --launch starts the real app
   ui <module>...             local convenience: Studio dev server in a browser (fake engine), with
-                             panel.json / presentation.json save-and-reload
+                             panel.json / presentation.json save-and-reload; --check type-checks Studio
+  shot <module>              local convenience: render the module's card in the Studio app tree to a PNG
+  studio-diff                regenerate tools/studio/lab.patch from the workshop Studio overlay
 
 A <module> is a folder name under modules/ (else under tools/fixtures/), or a path to a module folder.
 """
@@ -23,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import difflib
 import hashlib
 import json
 import math
@@ -32,8 +36,10 @@ import re
 import shlex
 import shutil
 import signal
+import socket
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -48,12 +54,17 @@ ENGINE_CMAKE = "engine/CMakeLists.txt"
 SIDECAR = "apps/studio/public/catalogue-presentation.json"
 UI_CATALOGUE = "apps/studio/public/wirescape_modules.json"
 UI_GENERATOR = "tools/gen_ui_catalogue.py"
+MB1_WITNESS = "tools/mb1/test_wire_describe.py"
+KNOWN_IDS = "tools/foundation/fixtures/known_module_ids.txt"
+BENCH_SETS = "bench/module_sets.json"
 S0_FIXTURE = "host/sidecar/testdata/s0_catalogue.ndjson"
 PANELS_DIR = "apps/studio/public/panels"
 PANEL_FILE = "panel.json"
 # Keys of Studio's PanelOverride (apps/studio/src/panels/layouts.ts) plus the licence key.
 PANEL_KEYS = ("width", "code", "layout", "sections", "short", "roles", "widgets", "panes",
               "paneOptions", "hidden", "modPorts", "ports")
+STUDIO_OVERLAY = "tools/studio"   # workshop Studio overlay (app tree only); see tools/studio/README.md
+STUDIO_PREFIX = "apps/studio/src/"
 APP_KEEP = ("apps/studio/node_modules", "apps/studio/dist", "apps/desktop/node_modules",
             "apps/desktop/build")  # survive an app-tree refresh so npm and Vite stay incremental
 
@@ -253,12 +264,38 @@ class Lab:
 
 # --------------------------------------------------------------------------- scratch tree (§2.3)
 
+def override_regression(m: Module) -> str | None:
+    """The reviewed direct-build overrides with module-local CMake regressions."""
+    if (m.kind == "override" and m.name in {"groove", "lfo"}
+            and (m.folder / "CMakeLists.txt").is_file()
+            and (m.folder / "tests.cpp").is_file()):
+        return f"abi2_{m.name}_tests"
+    return None
+
+
 def registration_edits(lab_dir: Path, modules: list[Module]) -> dict[str, str]:
-    """The only edits allowed in a scratch tree, keyed by lab path: three per new module, pre-MB2."""
+    """Allow only the engine CMake and, for new modules, existing catalogue edits."""
     new = [m for m in modules if m.kind == "new"]
-    if not new or not (lab_dir / CATALOG_INC).is_file():
+    if not (lab_dir / CATALOG_INC).is_file():
         return {}
+    cmake_lines = [f"add_subdirectory(../modules/{m.name} {m.name})" for m in new]
+    for m in modules:
+        target = override_regression(m)
+        if target:
+            cmake_lines.extend([f"if(NOT TARGET {target})",
+                                f"  add_subdirectory(../modules/{m.name} {m.name}_override_tests)",
+                                "endif()"])
+    if not cmake_lines:
+        return {}
+
+    def append(text: str, extra: list[str]) -> str:
+        nl = "\r\n" if "\r\n" in text else "\n"
+        return (text if text.endswith(nl) else text + nl) + nl.join(extra) + nl
+
     cmake = (lab_dir / ENGINE_CMAKE).read_text(encoding="utf-8")
+    edits = {ENGINE_CMAKE: append(cmake, cmake_lines)}
+    if not new:
+        return edits
     header = (lab_dir / CATALOG_H).read_text(encoding="utf-8")
     inc = (lab_dir / CATALOG_INC).read_text(encoding="utf-8")
     newline = "\r\n" if "\r\n" in header else "\n"
@@ -268,11 +305,8 @@ def registration_edits(lab_dir: Path, modules: list[Module]) -> dict[str, str]:
     if last is None:
         raise Refused(f"{CATALOG_H} has no module #include line to follow")
     lines[last + 1:last + 1] = [f'#include "../../modules/{m.name}/dsp.h"' for m in new]
-    def append(text: str, extra: list[str]) -> str:
-        nl = "\r\n" if "\r\n" in text else "\n"
-        return (text if text.endswith(nl) else text + nl) + nl.join(extra) + nl
     return {
-        ENGINE_CMAKE: append(cmake, [f"add_subdirectory(../modules/{m.name} {m.name})" for m in new]),
+        **edits,
         CATALOG_H: newline.join(lines),
         CATALOG_INC: append(inc, [f"WS_APP_MODULE({m.cls})" for m in new]),
     }
@@ -354,9 +388,94 @@ def panel_edits(lab_dir: Path, modules: list[Module]) -> dict[str, str]:
     return edits
 
 
+def mb1_pin(lab_dir: Path) -> bool:
+    """The MB1 equality witness distinguishes native-descriptor pins from older manifest pins."""
+    return (lab_dir / MB1_WITNESS).is_file()
+
+
+def new_module_ids(modules: list[Module]) -> list[str]:
+    ids = []
+    for m in modules:
+        if m.kind != "new":
+            continue
+        ident = module_info_id(m.folder)
+        if not ident or ident in ids:
+            raise Refused(f"{m.name}: missing or duplicate staged module ID")
+        ids.append(ident)
+    return ids
+
+
+def bench_inventory(lab_dir: Path, modules: list[Module]) -> bytes:
+    """A106: insert only new IDs in experimental, preserving every pre-existing byte."""
+    try:
+        raw = (lab_dir / BENCH_SETS).read_bytes()
+        text = raw.decode("utf-8")
+        data = json.loads(text)
+        experimental, golden = data["experimental"], data["golden_set"]
+        if not isinstance(experimental, list) or not isinstance(golden, list):
+            raise ValueError("expected inventory arrays")
+        ids = new_module_ids(modules)
+        if set(ids) & (set(experimental) | set(golden)):
+            raise ValueError("staged new ID already in inventory")
+        if not ids:
+            return raw
+        matches = list(re.finditer(r'"experimental"\s*:\s*\[', text))
+        if len(matches) != 1:
+            raise ValueError("expected one experimental array")
+        start = matches[0].end() - 1
+        array, end = json.JSONDecoder().raw_decode(text, start)
+        if array != experimental:
+            raise ValueError("experimental array mismatch")
+        # Insert before trailing whitespace and the closing bracket, not by reserializing the object.
+        insert = start + 1 + len(text[start + 1:end - 1].rstrip())
+        addition = (", " if experimental else "") + ", ".join(json.dumps(i) for i in ids)
+        result = text[:insert] + addition + text[insert:]
+        data["experimental"] = experimental + ids
+        if json.loads(result) != data:
+            raise ValueError("inventory insertion changed another value")
+        return result.encode("utf-8")
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise Refused(f"{BENCH_SETS}: {error}") from error
+
+
+def mb1_generate(lab: Lab, dest: Path, modules: list[Module]) -> dict[str, bytes]:
+    """A106: freshly build this scratch's descriptor executable; check generated known-ID bytes."""
+    # A fresh, out-of-tree build prevents reuse of a host or previously staged descriptor.
+    # Do not let native build products enter the strict source-tree allowlist.
+    with tempfile.TemporaryDirectory(prefix=f"{dest.name}-describe-", dir=dest.parent) as tmp:
+        build_dir = Path(tmp)
+        ok, detail = cmake_build(lab, dest, build_dir, ["wire-describe"], False, "Release")
+        if not ok:
+            raise Refused(f"wire-describe build failed: {detail}")
+        try:
+            describe = binary(build_dir, "wire-describe", "Release").resolve()
+        except StepFailed as error:
+            raise Refused(error.detail) from error
+        result = run([str(describe)], cwd=dest, timeout=60)
+        try:
+            if result.returncode:
+                raise ValueError(tail(result.stderr, 10))
+            ids = [row["id"] for row in json.loads(result.stdout)["modules"]]
+            prior = [line.strip() for line in (lab.dir / KNOWN_IDS).read_text(encoding="utf-8").splitlines()
+                     if line.strip() and not line.startswith("#")]
+            if len(ids) != len(set(ids)) or set(ids) != set(prior) | set(new_module_ids(modules)):
+                raise ValueError("descriptor IDs differ from pin plus staged new IDs")
+            known = ("# SPDX-License-Identifier: GPL-3.0-only\n"
+                     "# Generated by tools/gen_ui_catalogue.py from wire-describe; never remove IDs.\n"
+                     + "".join(i + "\n" for i in sorted(ids))).encode("utf-8")
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise Refused(f"wire-describe: {error}") from error
+        generated = run_ui_generator(dest, describe)
+        if not (dest / KNOWN_IDS).is_file() or (dest / KNOWN_IDS).read_bytes() != known:
+            raise Refused(f"{KNOWN_IDS}: does not match scratch wire-describe output")
+    return {UI_CATALOGUE: generated, KNOWN_IDS: known}
+
+
 def expected_tree(lab: Lab, tracked: list[str], modules: list[Module],
-                  panels: bool = False) -> dict[str, tuple[str, Path | bytes]]:
-    """relative path -> ("lab"|"module"|"edit", source) for every file the scratch tree must hold."""
+                  panels: bool = False, overlay: dict[str, bytes] | None = None
+                  ) -> dict[str, tuple[str, Path | bytes]]:
+    """relative path -> ("lab"|"module"|"edit", source) for every file the scratch tree must hold.
+    `overlay` (app tree only, from load_overlay) replaces or adds workshop Studio files."""
     replaced = {m.name for m in modules}
     tree: dict[str, tuple[str, Path | bytes]] = {}
     for rel in tracked:
@@ -371,6 +490,10 @@ def expected_tree(lab: Lab, tracked: list[str], modules: list[Module],
     for rel, text in {**registration_edits(lab.dir, modules), **presentation_edit(lab.dir, modules),
                       **extra}.items():
         tree[rel] = ("edit", text.encode("utf-8"))
+    if mb1_pin(lab.dir):
+        tree[BENCH_SETS] = ("edit", bench_inventory(lab.dir, modules))
+    for rel, data in (overlay or {}).items():
+        tree[rel] = ("edit", data)
     return tree
 
 
@@ -411,10 +534,13 @@ def verify_scratch(scratch: Path, tree: dict, keep: tuple[str, ...] = ()) -> Non
                       + detail + "). A module that needs a lab change files a `limitation found` issue.")
 
 
-def run_ui_generator(dest: Path) -> bytes:
+def run_ui_generator(dest: Path, describe: Path | None = None) -> bytes:
     """§9.1 rule 2: the pin's own generator, unmodified, without --check. Its output is the only
     other allowed difference; verify_scratch refuses anything else it touches."""
-    result = run([sys.executable, str(dest / UI_GENERATOR)], cwd=dest, timeout=300)
+    command = [sys.executable, str(dest / UI_GENERATOR)]
+    if describe is not None:
+        command += ["--describe", str(describe)]
+    result = run(command, cwd=dest, timeout=300)
     if result.returncode:
         raise Refused(f"{UI_GENERATOR} refused the presentation.json entries:\n"
                       + tail(result.stdout + result.stderr, 10))
@@ -434,11 +560,12 @@ def clean_except(dest: Path, keep: tuple[str, ...]) -> None:
 
 
 def prepare_tree(lab: Lab, dest: Path, modules: list[Module], panels: bool = False,
-                 keep: tuple[str, ...] = ()) -> dict:
+                 keep: tuple[str, ...] = (), overlay: dict[str, bytes] | None = None) -> dict:
     """Recreate dest from the pin, apply the module folders and registration, then verify.
-    `panels` (the app tree) also writes panels/<id>.json; `keep` leaves install outputs in place."""
+    `panels` (the app tree) also writes panels/<id>.json; `keep` leaves install outputs in place;
+    `overlay` (the app tree) adds the workshop Studio files. T0/T1/T2 trees never pass one."""
     tracked = lab.tracked()
-    tree = expected_tree(lab, tracked, modules, panels)
+    tree = expected_tree(lab, tracked, modules, panels, overlay)
     stamp_path = dest.parent / f"{dest.name}.stamp.json"
     try:
         previous = json.loads(stamp_path.read_text(encoding="utf-8"))
@@ -462,7 +589,12 @@ def prepare_tree(lab: Lab, dest: Path, modules: list[Module], panels: bool = Fal
             shutil.copy2(source, target)
         if kind != "lab":
             stamp[rel] = sha256(target.read_bytes())
-    if SIDECAR in tree and tree[SIDECAR][0] == "edit" and (dest / UI_GENERATOR).is_file():
+    if mb1_pin(lab.dir):
+        verify_scratch(dest, tree, keep)
+        for rel, generated in mb1_generate(lab, dest, modules).items():
+            tree[rel] = ("edit", generated)
+            stamp[rel] = sha256(generated)
+    elif SIDECAR in tree and tree[SIDECAR][0] == "edit" and (dest / UI_GENERATOR).is_file():
         generated = run_ui_generator(dest)
         tree[UI_CATALOGUE] = ("edit", generated)
         stamp[UI_CATALOGUE] = sha256(generated)
@@ -537,10 +669,14 @@ def ctest_names(build_dir: Path, config: str) -> list[str]:
 
 
 def module_tests(m: Module, names: list[str]) -> list[str]:
+    legacy = [n for n in names if n.startswith(m.name + "_") and n.endswith("_tests")]
+    required = override_regression(m)
+    if required:
+        return [required, *legacy]
     exact = f"abi2_{m.name}_tests"
     if exact in names:
         return [exact]
-    return [n for n in names if n.startswith(m.name + "_") and n.endswith("_tests")]
+    return legacy
 
 
 # --------------------------------------------------------------------------- steps
@@ -880,6 +1016,59 @@ def cmd_t0(args) -> int:
     modules = [resolve_module(a) for a in args.modules]
     session, wall = run_t0(args, modules)
     return report(session, wall, args.command)
+
+
+def cmd_render(args) -> int:
+    """Offline listening preview, deliberately not a T0 test."""
+    import struct
+    m = resolve_module(args.module)
+    if any(value is not None and value <= 0 for value in (args.rate, args.block)):
+        raise Refused("render rate and block must be positive")
+    cases = sorted((m.folder / "demos").glob("*.json"))
+    if args.demo:
+        requested = Path(args.demo)
+        if requested.parent == Path("."):
+            cases = [case for case in cases if case.name == requested.name]
+        else:
+            cases = [case for case in cases if case.resolve() == requested.resolve()]
+    if not cases:
+        raise Refused("no matching demos/*.json for " + m.name)
+    # Validate all cases before building, but do not apply T0's evidence windows
+    # (their frame indices depend on the original sample rate).
+    try:
+        demos = [(path, validate_case(path)) for path in cases]
+    except (StepFailed, OSError) as error:
+        raise Refused(str(error)) from error
+    session = Session(args, [m])
+    session.lab.fetch(git_deps=args.git_deps)
+    session.register()
+    failed = False
+    try:
+        log("building wirescape_render (offline preview only) ...")
+        ok, detail = cmake_build(session.lab, session.scratch, session.build_dir,
+                                 ["wirescape_render"], False, session.config)
+        if not ok:
+            raise Refused(detail)
+        render = binary(session.build_dir, "wirescape_render", session.config)
+        for path, case in demos:
+            out = ROOT / "build" / "wstest-out" / "render" / m.name / path.stem
+            wav = out / "audio.wav"
+            # Never report a stale WAV if the new render fails.
+            try:
+                wav.unlink(missing_ok=True)
+                render_case(render, case, out, rate=args.rate, block=args.block)
+                peak, finite = wav_peak(wav)
+                log(f"{path.name}: peak={peak:.6g} finite={str(finite).lower()} "
+                    f"WAV={wav.relative_to(ROOT).as_posix()}")
+                failed |= not finite
+            except (StepFailed, OSError, ValueError, struct.error) as error:
+                log(f"{path.name}: render failed: {getattr(error, 'detail', str(error))}")
+                failed = True
+    except StepFailed as error:
+        raise Refused(error.detail) from error
+    finally:
+        verify_scratch(session.scratch, session.tree)
+    return 1 if failed else 0
 
 
 def cmd_identical(args) -> int:
@@ -1239,19 +1428,76 @@ def npm_install(scratch: Path, sub: str) -> None:
     stamp_path.write_text(json.dumps(stamps), encoding="utf-8")
 
 
+def overlay_files(root: Path = ROOT) -> dict[str, Path]:
+    """Studio overlay files under tools/studio/, by lab-relative path (only apps/studio/src/**)."""
+    base = root / STUDIO_OVERLAY
+    found = {}
+    for here, dirs, files in os.walk(base / "apps"):
+        for name in files:
+            path = Path(here) / name
+            found[path.relative_to(base).as_posix()] = path
+    return dict(sorted(found.items()))
+
+
+def load_overlay(lab: Lab) -> dict[str, bytes]:
+    """The workshop Studio files for the app tree. Refuses when a pinned file they replace differs
+    from the one BASE.json was taken from (a pin bump that touched it), or the overlay strays."""
+    files = overlay_files(lab.root)
+    manifest = lab.root / STUDIO_OVERLAY / "BASE.json"
+    if not files and not manifest.exists():
+        return {}
+    try:
+        base = json.loads(manifest.read_text(encoding="utf-8"))["files"]
+    except (OSError, ValueError, KeyError, TypeError):
+        raise Refused(f"{STUDIO_OVERLAY}/BASE.json is missing or unreadable")
+    if not isinstance(base, dict):
+        raise Refused(f"{STUDIO_OVERLAY}/BASE.json files must be a mapping")
+    stray = [rel for rel in files if not rel.startswith(STUDIO_PREFIX)]
+    unlisted = [rel for rel in files if rel not in base]
+    if stray or unlisted:
+        raise Refused(f"{STUDIO_OVERLAY} holds files outside {STUDIO_PREFIX} or missing from BASE.json: "
+                      + ", ".join((stray + unlisted)[:8]))
+    for rel, digest in base.items():
+        if (not rel.startswith(STUDIO_PREFIX) or "\\" in rel or ":" in rel
+                or any(part in ("", ".", "..") for part in rel.split("/"))):
+            raise Refused(f"BASE.json requires normalized {STUDIO_PREFIX} paths: {rel}")
+        if digest is not None and (not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)):
+            raise Refused(f"BASE.json invalid SHA-256: {rel}")
+    missing = sorted(set(base) - set(files))
+    if missing:
+        raise Refused("BASE.json lists missing overlay files: " + ", ".join(missing))
+    stale = []
+    for rel, digest in base.items():
+        pinned = lab.dir / rel
+        now = sha256(pinned.read_bytes()) if pinned.is_file() else None
+        if now != digest:
+            stale.append(rel)
+    if stale:
+        raise Refused(f"the pin ({lab.sha7}) changed Studio files the workshop overlay replaces; rebase "
+                      f"{STUDIO_OVERLAY}/ onto them, then run `wstest studio-diff --update-base`:\n  "
+                      + "\n  ".join(stale))
+    return {rel: path.read_bytes() for rel, path in files.items()}
+
+
 def prepare_app_tree(lab: Lab, modules: list[Module]) -> tuple[Path, dict]:
     scratch = lab.root / "build" / f"app-{lab.sha7}"
-    return scratch, prepare_tree(lab, scratch, modules, panels=True, keep=APP_KEEP)
+    return scratch, prepare_tree(lab, scratch, modules, panels=True, keep=APP_KEEP,
+                                 overlay=load_overlay(lab))
 
 
 def refresh_app_files(lab: Lab, scratch: Path, modules: list[Module], tracked: list[str]) -> dict:
     """Re-apply only the edited files (panels, sidecar, regenerated catalogue) to a prepared app tree."""
-    tree = expected_tree(lab, tracked, modules, panels=True)
+    if mb1_pin(lab.dir):
+        return prepare_app_tree(lab, modules)[1]
+    tree = expected_tree(lab, tracked, modules, panels=True, overlay=load_overlay(lab))
     try:
         for rel, (kind, source) in tree.items():
             if kind == "edit":
-                (scratch / rel).parent.mkdir(parents=True, exist_ok=True)
-                (scratch / rel).write_bytes(source)
+                target = scratch / rel
+                if target.is_file() and target.read_bytes() == source:
+                    continue  # unchanged: keep its mtime so the dev server does not reload for nothing
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(source)
         if SIDECAR in tree and (scratch / UI_GENERATOR).is_file():
             tree[UI_CATALOGUE] = ("edit", run_ui_generator(scratch))
         verify_scratch(scratch, tree, APP_KEEP)
@@ -1316,6 +1562,8 @@ def watched(modules: list[Module]) -> dict[str, int]:
         for name in (PANEL_FILE, "presentation.json"):
             path = m.folder / name
             state[str(path)] = path.stat().st_mtime_ns if path.is_file() else 0
+    for path in [*overlay_files().values(), ROOT / STUDIO_OVERLAY / "BASE.json"]:  # workshop Studio edits
+        state[str(path)] = path.stat().st_mtime_ns if path.is_file() else 0
     return state
 
 
@@ -1326,7 +1574,13 @@ def cmd_ui(args) -> int:
     scratch, tree = prepare_app_tree(lab, modules)
     if not any((m.folder / "presentation.json").is_file() for m in modules):
         log("warning: no module has a presentation.json, so none is in the UI catalogue yet")
-    log(f"app tree ready: build/app-{lab.sha7}/ (no C++ build; Studio uses its fake engine, no sound)")
+    log(f"app tree ready: build/app-{lab.sha7}/ (Studio uses its fake engine, no sound)")
+    if args.check:
+        npm_install(scratch, "apps/studio")
+        log("type-checking Studio (tsc --noEmit) ...")
+        result = run([tool_path("npx"), "tsc", "--noEmit", "-p", "."], cwd=scratch / "apps/studio",
+                     timeout=1800, capture=False)
+        return 0 if result.returncode == 0 else 1
     if args.no_serve:
         return 0
     npm_install(scratch, "apps/studio")
@@ -1356,6 +1610,138 @@ def cmd_ui(args) -> int:
         return 0
     finally:
         stop_process(proc)
+
+
+# --------------------------------------------------------------------------- studio overlay and shot
+
+def studio_patch(lab: Lab, root: Path = ROOT) -> str:
+    """The overlay as a unified diff against the pinned lab (for review; never applied by the harness)."""
+    out = []
+    for rel, path in overlay_files(root).items():
+        pinned = lab.dir / rel
+        old = pinned.read_text(encoding="utf-8").splitlines(keepends=True) if pinned.is_file() else []
+        new = path.read_text(encoding="utf-8").splitlines(keepends=True)
+        out += difflib.unified_diff(old, new, f"a/{rel}" if old else "/dev/null", f"b/{rel}")
+    header = ("SPDX-License-Identifier: GPL-3.0-only\n"
+              "Workshop Studio overlay against the lab at LAB_PIN, generated by `wstest studio-diff`; "
+              "see README.md.\n\n")
+    return header + "".join(out)
+
+
+def cmd_studio_diff(args) -> int:
+    lab = Lab()
+    lab.fetch(git_deps=args.git_deps)
+    folder = ROOT / STUDIO_OVERLAY
+    if args.update_base:
+        files = overlay_files()
+        base = {rel: (sha256((lab.dir / rel).read_bytes()) if (lab.dir / rel).is_file() else None)
+                for rel in files}
+        text = json.dumps({"SPDX-License-Identifier": "GPL-3.0-only", "lab_commit": lab.sha, "files": base},
+                          indent=2) + "\n"
+        (folder / "BASE.json").write_text(text, encoding="utf-8")
+        log(f"wrote {STUDIO_OVERLAY}/BASE.json for lab {lab.sha7}")
+    load_overlay(lab)  # refuses a stale base: the patch must not hide a pin change
+    patch = studio_patch(lab)
+    (folder / "lab.patch").write_text(patch, encoding="utf-8")
+    log(f"wrote {STUDIO_OVERLAY}/lab.patch ({patch.count(chr(10))} lines, {len(overlay_files())} files)")
+    return 0
+
+
+SHOT_JS = r"""
+const { chromium } = require('@playwright/test');
+(async () => {
+  const [url, out, theme, id] = process.argv.slice(2);
+  const exe = process.env.WIRESCAPE_CHROMIUM;
+  const browser = await chromium.launch(exe ? { executablePath: exe } : {});
+  try {
+  const page = await browser.newPage({ viewport: { width: 1800, height: 1600 }, deviceScaleFactor: 2 });
+  const errors = [];
+  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('pageerror', e => errors.push(String(e)));
+  await page.goto(url);
+  await page.waitForSelector('body[data-ready="true"]', { timeout: 60000 });
+  if (theme === 'dark') await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
+  await page.evaluate((m) => window.__wirescapeTest.addModule(m), id);
+  await page.evaluate(() => window.__wirescapeTest.zoomTo(1));
+  await page.waitForTimeout(800);
+  const mods = (await page.evaluate(() => window.__wirescapeTest.state())).modules;
+  const mid = Array.isArray(mods) ? mods[mods.length - 1].id : Object.keys(mods).pop();
+  const card = page.getByTestId('module-' + mid);
+  const box = await card.boundingBox();
+  await card.screenshot({ path: out });
+  console.log(`card ${Math.round(box.width)} x ${Math.round(box.height)} CSS px, console errors: ${errors.length}`);
+  for (const e of errors) console.log('  ' + e);
+  process.exitCode = errors.length ? 1 : 0;
+  } finally {
+    await browser.close();
+  }
+})().catch(error => { console.error(error); process.exitCode = 1; });
+"""
+
+
+def shot_chromium(browser_root: Path = Path("/opt/pw-browsers/chromium")) -> str | None:
+    """Prefer explicit or preinstalled Chromium; otherwise use Playwright's default."""
+    explicit = os.environ.get("WIRESCAPE_CHROMIUM")
+    if explicit:
+        return explicit
+    candidates = [browser_root] if browser_root.is_file() else sorted(browser_root.glob("**/chrome"))
+    for candidate in candidates:
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
+
+
+def free_port() -> int:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def cmd_shot(args) -> int:
+    """Render one module's card at zoom 1 in the app tree's Studio (fake engine; no devices)."""
+    lab = Lab()
+    lab.fetch(git_deps=args.git_deps)
+    modules = app_modules(args, lab)
+    m = modules[0]
+    ident = module_info_id(m.folder)
+    if not ident or not (m.folder / "presentation.json").is_file():
+        raise Refused(f"{m.name} needs a dsp.h id and a presentation.json to be in the UI catalogue")
+    scratch, _ = prepare_app_tree(lab, modules)
+    npm_install(scratch, "apps/studio")
+    studio = scratch / "apps/studio"
+    out = Path(args.out) if args.out else ROOT / "build" / "shots" / f"{m.name}{'-dark' if args.dark else ''}.png"
+    out = out.resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    port = args.port or free_port()
+    server = subprocess.Popen([tool_path("npx"), "vite", "--port", str(port), "--strictPort"], cwd=str(studio),
+                              stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+                              **({"start_new_session": True} if os.name != "nt"
+                                 else {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}))
+    try:
+        deadline = time.time() + 60
+        while time.time() < deadline:
+            if server.poll() is not None:
+                raise Refused(f"the Studio dev server exited (code {server.returncode})")
+            try:
+                socket.create_connection(("127.0.0.1", port), timeout=1).close()
+                break
+            except OSError:
+                time.sleep(0.3)
+        else:
+            raise Refused("the Studio dev server did not start within 60 s")
+        script = studio / "node_modules" / ".wstest-shot.cjs"
+        script.write_text(SHOT_JS, encoding="utf-8")
+        result = run([tool_path("node"), str(script), f"http://127.0.0.1:{port}/", str(out),
+                      "dark" if args.dark else "light", ident], cwd=studio, timeout=300,
+                     env={**os.environ, **({"WIRESCAPE_CHROMIUM": exe} if (exe := shot_chromium()) else {})})
+        print(result.stdout, end="")
+        if result.returncode:
+            print(tail(result.stderr, 10), file=sys.stderr)
+            return 1
+        log(f"wrote {out}")
+        return 0
+    finally:
+        stop_process(server)
 
 
 # --------------------------------------------------------------------------- CI scope
@@ -1419,6 +1805,13 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--probe-seconds", type=float, default=5.0)
         p.add_argument("--probe-channels", type=int, action="append", choices=range(1, 17))
         p.set_defaults(func=cmd_t0)
+    p = sub.add_parser("render", help="fast offline WAV preview; not a test tier")
+    common(p, None)
+    p.add_argument("module")
+    p.add_argument("--demo", help="one demos/*.json filename or path (default: all)")
+    p.add_argument("--rate", type=int, help="override demo sample rate")
+    p.add_argument("--block", type=int, help="override demo block size")
+    p.set_defaults(func=cmd_render)
     p = sub.add_parser("identical")
     common(p)
     p.set_defaults(func=cmd_identical, sanitize=False)
@@ -1445,7 +1838,19 @@ def main(argv: list[str] | None = None) -> int:
     common(p)
     p.add_argument("--port", type=int, default=5173)
     p.add_argument("--no-serve", action="store_true", help="prepare the tree and exit (tests)")
+    p.add_argument("--check", action="store_true", help="prepare the tree, type-check Studio (tsc) and exit")
     p.set_defaults(func=cmd_ui)
+    p = sub.add_parser("shot", help="local only: render <module>'s card (Studio fake engine, zoom 1) to a PNG")
+    common(p, 1)
+    p.add_argument("--dark", action="store_true", help="dark colour scheme")
+    p.add_argument("--out", help="PNG path (default build/shots/<name>[-dark].png)")
+    p.add_argument("--port", type=int, default=0, help="dev-server port (default: a free one)")
+    p.set_defaults(func=cmd_shot)
+    p = sub.add_parser("studio-diff", help="regenerate tools/studio/lab.patch from the overlay copies")
+    p.add_argument("--git-deps", action="store_true")
+    p.add_argument("--update-base", action="store_true",
+                   help="after rebasing the copies onto a new pin, rewrite BASE.json from it")
+    p.set_defaults(func=cmd_studio_diff)
     p = sub.add_parser("scope")
     p.add_argument("--base")
     p.add_argument("--head")

@@ -34,7 +34,7 @@ pedal release. Existing state/allocator tests remain unchanged.
 
 ## Limitations
 
-[Lab #719](https://github.com/kalharbi11/wirescape-lab/issues/719): the pinned
+[LR-13](../../LAB_REQUESTS.md), [lab #722](https://github.com/kalharbi11/wirescape-lab/issues/722): the pinned
 renderer script cannot inject raw UMP (only noteOn, noteOff, gate, setParam).
 The idle demo verifies silence and unmodulated identity only; it is not evidence
 of an audible MIDI note or active behavior. Device-free C++ tests exercise
@@ -42,10 +42,15 @@ synthetic UMP through MIDI In and MIDI to CV, without a shared tool change.
 No lab edits; active offline render evidence remains unavailable until lab
 support is approved. No gate is weakened.
 
-Blocking C4 failure: on the untouched descriptor, test-first T0 at decafcf
+[LR-12](../../LAB_REQUESTS.md): blocking C4 failure on the current pin: on the untouched descriptor, test-first T0 at decafcf
 failed before compilation: `param[2] range/initial invalid: steal_policy`.
 [Job log](https://github.com/kalharbi11/wirescape-test/actions/runs/45970820334/job/140410596032).
 The pinned wsmod validator rejects min == max; the mandated inert parameter
 has min=max=default=0. This is tracked in lab #719. No module-local workaround
 without altering the parameter contract or bypassing C4; neither is allowed.
-The new regression was not executed; #31 remains blocked pending lab support.
+The new regression was not executed on the old pin. Lab PR [#724](https://github.com/kalharbi11/wirescape-lab/pull/724)
+merged the C4 singleton-range fix at `3d3db7a64090682a62f220d73baef49709048c87`.
+The original DSP, module.cpp, module.json, tests and trigger support are unchanged
+between the old pin and this candidate. PIN-next #57 is still under validation;
+#31 remains blocked until the pin merges and the regression and identical gates
+actually execute. LR-13 remains open independently; the idle demo is intentional.
