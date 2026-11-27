@@ -31,6 +31,23 @@ Older pins retain the no-C++-build UI path.
 
 `npm ci` runs on the first use and again only when the lab's `package-lock.json` changes.
 
+## The workshop Studio overlay
+`tools/studio/` holds edited Studio files (grid `cells`/`rows`/`grow`, `tone: "band"`, the `slider` widget,
+`ports.input.params` with `ui.paramsShown`; see its README). `ui`, `app` and `shot` copy them over the app
+copy `build/app-<sha7>/` after it is prepared and before Studio is served or built. The T0/T1/T2 tree
+`build/scratch-<sha7>/` never gets them. They are workshop-only until the owner asks for the lab task.
+
+- **Edit it:** change the files under `tools/studio/apps/studio/src/`, then run `python tools/wstest.py
+  studio-diff` to regenerate `lab.patch` for review. While `ui` runs, saving an overlay file copies it into the
+  app copy (`updated — reload the browser`).
+- **Check it:** `ui <name> --check` type-checks Studio; `shot <name> [--dark] [--out f.png]` renders the
+  module's card (devices off; set `WIRESCAPE_CHROMIUM` if Playwright's browser is missing). Screenshots are
+  not committed.
+- **Pin bump:** `tools/studio/BASE.json` holds the SHA-256 of each pinned file the copies replace. If a bump
+  changes one, `ui`, `app` and `shot` refuse and name the file. Re-apply the overlay's edits on the new file,
+  then run `studio-diff --update-base` (rewrites `BASE.json` from the new pin and regenerates `lab.patch`).
+  A pin bump that touches none of them needs nothing.
+
 ## `panel.json`
 Optional, one per module, next to `presentation.json`. It is Studio's `PanelOverride` plus the SPDX key.
 Unknown keys are refused. Every key is optional; a module with no panel file still gets a full panel.
@@ -70,7 +87,7 @@ The id is the one in `dsp.h`; the file may omit `id`, and if it has one it must 
 - Live module telemetry in the panel.
 - Parameters you do not place in a section still appear, under "MORE". `hidden` removes one from the card
   but keeps it saved and modulatable.
-- Anything that needs a Studio or engine change is a lab issue labelled `limitation found` (AGENTS.md rule 2).
+- Anything that needs a Studio or engine change beyond the workshop overlay is a lab issue labelled `limitation found` (AGENTS.md rule 2).
 
 ## Where files go
 `build/app-<sha7>/` is the app copy (pin + your folders + registration + `presentation.json` + panel files).

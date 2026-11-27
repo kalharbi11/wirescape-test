@@ -397,6 +397,102 @@ class PresentationTests(FakeLab):
             wstest.prepare_tree(lab, self.root / "build/s3", [self.thing({"id": "test.thing"})])
 
 
+class StudioOverlayTests(FakeLab):
+    """tools/studio/: the workshop Studio overlay reaches the app tree only."""
+    SRC = "apps/studio/src/panels/layouts.ts"
+    NEW = "apps/studio/src/panels/widgets/Slider.ts"
+
+    def setUp(self):
+        super().setUp()
+        pinned = self.lab.dir / self.SRC
+        pinned.parent.mkdir(parents=True, exist_ok=True)
+        write(pinned, "// pinned\n")
+        git(self.lab.dir, "add", "-f", ".")  # a tracked file the overlay replaces
+        git(self.lab.dir, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-qm", "x")
+        self.overlay = self.root / wstest.STUDIO_OVERLAY
+        write(self.overlay / self.SRC, "// overlay\n")
+        write(self.overlay / self.NEW, "// new widget\n")
+        self.base({self.SRC: wstest.sha256(b"// pinned\n"), self.NEW: None})
+
+    def base(self, files):
+        write(self.overlay / "BASE.json", json.dumps({"lab_commit": self.lab.sha, "files": files}))
+
+    def test_app_tree_gets_the_overlay_and_t0_tree_does_not(self):
+        m = self.new_module()
+        app = self.root / "build/app"
+        wstest.prepare_tree(self.lab, app, [m], panels=True, keep=wstest.APP_KEEP,
+                            overlay=wstest.load_overlay(self.lab))
+        self.assertEqual((app / self.SRC).read_text(), "// overlay\n")
+        self.assertEqual((app / self.NEW).read_text(), "// new widget\n")
+        # T0/T1/T2 path: prepare_tree is called without an overlay; the tree equals the one without tools/studio
+        with_dir = wstest.prepare_tree(self.lab, self.root / "build/t0a", [m])
+        t0 = self.root / "build/t0a"
+        self.assertEqual((t0 / self.SRC).read_text(), "// pinned\n")
+        self.assertFalse((t0 / self.NEW).exists())
+        import shutil
+        shutil.rmtree(self.overlay)
+        without = wstest.prepare_tree(self.lab, self.root / "build/t0b", [m])
+        self.assertEqual(sorted(with_dir), sorted(without))
+        self.assertEqual({k: v for k, v in with_dir.items() if v[0] == "edit"},
+                         {k: v for k, v in without.items() if v[0] == "edit"})
+        for rel in with_dir:
+            self.assertEqual((t0 / rel).read_bytes(), (self.root / "build/t0b" / rel).read_bytes())
+
+    def test_prepare_app_tree_applies_overlay(self):
+        scratch, _ = wstest.prepare_app_tree(self.lab, [self.new_module()])
+        self.assertEqual((scratch / self.SRC).read_text(), "// overlay\n")
+
+    def test_changed_base_file_is_refused_with_its_name(self):
+        write(self.lab.dir / self.SRC, "// pinned, then edited\n")  # as if a pin bump changed it
+        with self.assertRaisesRegex(wstest.Refused, "(?s)changed Studio files.*layouts.ts"):
+            wstest.prepare_app_tree(self.lab, [self.new_module()])
+
+    def test_file_added_by_the_pin_is_refused(self):
+        write(self.lab.dir / self.NEW, "// the pin grew this\n")
+        with self.assertRaisesRegex(wstest.Refused, "Slider.ts"):
+            wstest.load_overlay(self.lab)
+
+    def test_overlay_file_missing_from_base_or_outside_studio_is_refused(self):
+        write(self.overlay / "apps/studio/src/extra.ts", "x\n")
+        with self.assertRaisesRegex(wstest.Refused, "missing from BASE.json"):
+            wstest.load_overlay(self.lab)
+        (self.overlay / "apps/studio/src/extra.ts").unlink()
+        write(self.overlay / "apps/desktop/main.ts", "x\n")
+        self.base({self.SRC: wstest.sha256(b"// pinned\n"), self.NEW: None, "apps/desktop/main.ts": None})
+        with self.assertRaisesRegex(wstest.Refused, "outside apps/studio/src/"):
+            wstest.load_overlay(self.lab)
+
+    def test_refresh_follows_overlay_edits_and_keeps_installs(self):
+        m = self.new_module()
+        scratch, _ = wstest.prepare_app_tree(self.lab, [m])
+        write(scratch / "apps/studio/node_modules/x/index.js", "// installed")
+        tracked = self.lab.tracked()
+        write(self.overlay / self.SRC, "// overlay v2\n")
+        wstest.refresh_app_files(self.lab, scratch, [m], tracked)
+        self.assertEqual((scratch / self.SRC).read_text(), "// overlay v2\n")
+        self.assertTrue((scratch / "apps/studio/node_modules/x/index.js").is_file())
+
+    def test_watcher_covers_overlay_files(self):
+        watched = wstest.watched([])
+        for rel, path in wstest.overlay_files().items():
+            self.assertIn(str(path), watched, rel)
+        self.assertEqual(sorted(wstest.overlay_files(self.root)), sorted([self.SRC, self.NEW]))
+
+    def test_studio_diff_patch_applies_to_the_pin(self):
+        patch = wstest.studio_patch(self.lab, self.root)
+        write(self.root / "p.patch", patch)
+        git(self.lab.dir, "apply", "--check", str(self.root / "p.patch"))
+        self.assertIn("+// overlay", patch)
+        self.assertIn("--- /dev/null", patch)
+
+
+class RealOverlayTests(unittest.TestCase):
+    def test_committed_base_matches_committed_copies(self):
+        base = json.loads((wstest.ROOT / wstest.STUDIO_OVERLAY / "BASE.json").read_text())["files"]
+        self.assertEqual(sorted(base), sorted(wstest.overlay_files()))
+        self.assertTrue(all(rel.startswith(wstest.STUDIO_PREFIX) for rel in base))
+
+
 class S0OthersTests(unittest.TestCase):
     """0024 §9.1 rule 4: the gating s0_catalogue_others check."""
     A = {"id": "a", "ports": [{"id": "in", "direction": "input"}, {"id": "out", "direction": "output"}],
