@@ -1,0 +1,33 @@
+{
+  "SPDX-License-Identifier":"GPL-3.0-only","name":"MOD-4: Clock quarter notes into Clock Div/Mult; ×2 and ÷2 gates play two ADSR voices","rate":48000,"block":128,"seconds":4,"seed":7,"peak_limit":1.2,
+  "patch":{"format":"wirescape.native.patch","version":2,"settings":{"seed":7},"name":"Demo: Clock Div/Mult eighths and halves",
+    "modules":[
+      {"id":1,"module":"essentials.clock","version":2,"parameters":{"bpm":120,"ticks_per_beat":1,"duty":0.25}},
+      {"id":2,"module":"essentials.clock_divmult","version":1,"parameters":{"ratio1":10,"ratio2":8,"ratio3":6,"ratio4":2,"width":0.3}},
+      {"id":3,"module":"essentials.vco","version":2,"parameters":{"frequency":440}},
+      {"id":4,"module":"essentials.adsr","version":2,"parameters":{"attack":0.002,"decay":0.05,"sustain":0.5,"release":0.03}},
+      {"id":5,"module":"essentials.vca","version":2,"parameters":{"gain":0.35}},
+      {"id":6,"module":"essentials.vco","version":2,"parameters":{"frequency":110}},
+      {"id":7,"module":"essentials.adsr","version":2,"parameters":{"attack":0.002,"decay":0.2,"sustain":0.6,"release":0.1}},
+      {"id":8,"module":"essentials.vca","version":2,"parameters":{"gain":0.35}},
+      {"id":9,"module":"essentials.mixer","version":2,"parameters":{}},
+      {"id":10,"module":"essentials.output","version":2,"parameters":{}}
+    ],
+    "connections":[
+      {"kind":"signal","from":{"module":1,"port":"clock"},"to":{"module":2,"port":"clock"}},
+      {"kind":"signal","from":{"module":2,"port":"out1"},"to":{"module":4,"port":"gate"}},
+      {"kind":"signal","from":{"module":2,"port":"out2"},"to":{"module":7,"port":"gate"}},
+      {"kind":"signal","from":{"module":3,"port":"audio"},"to":{"module":5,"port":"audio"}},
+      {"kind":"signal","from":{"module":4,"port":"envelope"},"to":{"module":5,"port":"gain_cv"}},
+      {"kind":"signal","from":{"module":6,"port":"audio"},"to":{"module":8,"port":"audio"}},
+      {"kind":"signal","from":{"module":7,"port":"envelope"},"to":{"module":8,"port":"gain_cv"}},
+      {"kind":"signal","from":{"module":5,"port":"audio"},"to":{"module":9,"port":"a"}},
+      {"kind":"signal","from":{"module":8,"port":"audio"},"to":{"module":9,"port":"b"}},
+      {"kind":"signal","from":{"module":9,"port":"audio"},"to":{"module":10,"port":"audio"}}
+    ],
+    "outputs":[{"module":10,"port":"audio","bus_channel":0},{"module":10,"port":"audio","bus_channel":1}]
+  },
+  "events":[],
+  "windows":[{"kind":"active","start":1000,"end":190000}],
+  "frequencies":[]
+}

@@ -13,7 +13,7 @@ One row per folder in `modules/`. Specs are in lab
 | `function_envelope` | `essentials.function_envelope` | override | §4.1 Trigger mode, `hold`, `delay` | MOD-1 (#5) | 1 | T1; T2 blocked: [lab #665](https://github.com/kalharbi11/wirescape-lab/issues/665) |
 | `adsr` | `essentials.adsr` | override | §4.1 `delay` | MOD-2 (#6) | 1 | T1; T2 blocked: [lab #664](https://github.com/kalharbi11/wirescape-lab/issues/664) |
 | `random` | `essentials.random` | new | §4.2 (starts from lab `sdk/examples/random_source`) | MOD-3 (#7), MOD-3a (#13) | 1 | T1 |
-| `clock_divmult` | `essentials.clock_divmult` | new | §4.3 | MOD-4 (#14) | 1 | planned (after MOD-3a) |
+| `clock_divmult` | `essentials.clock_divmult` | new | §4.3 | MOD-4 (#14) | 1 | draft; SDK-1 lab issue to file (`beat_clock.h`) |
 | `macro` | `essentials.macro` | new | §3.1 | MOD-5 (#8) | 1 | T1 |
 | `rhythm_lanes` | `sequencing.rhythm_lanes` | new | §4.4 (original design) | MOD-6 | 2 | planned |
 | chord, cv_to_notes, groove, host_keyboard, midi_in, midi_to_cv, notes_to_cv, quantizer | (existing) | override | §4.6 batch A, flags only | MOD-7 | 2 | planned |
