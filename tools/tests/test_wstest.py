@@ -228,6 +228,8 @@ class PresentationTests(FakeLab):
         write(lab / wstest.SIDECAR, json.dumps(self.SIDECAR, indent=1) + "\n")
         write(lab / wstest.UI_CATALOGUE, '["essentials.existing"]\n')
         write(lab / wstest.UI_GENERATOR, self.GENERATOR)
+        write(lab / wstest.PANELS_DIR / "index.json", '["essentials.existing"]\n')
+        write(lab / wstest.PANELS_DIR / "essentials.existing.json", '{"width": 10}\n')
         write(lab / "modules/existing/dsp.h", '// SPDX-License-Identifier: GPL-3.0-only\n#pragma once\n'
               'static constexpr ws::Info info{"essentials.existing","Existing",1};\n')
         git(lab, "add", ".")
@@ -257,6 +259,74 @@ class PresentationTests(FakeLab):
         self.assertNotIn("SPDX-License-Identifier", mods[1])
         self.assertEqual(json.loads((scratch / wstest.UI_CATALOGUE).read_text()),
                          ["essentials.existing", "test.thing"])
+
+    # ---- panel.json (wstest app / ui; never T0)
+    def panel(self, panel: dict | str, ident: str = "test.thing", presentation: bool = True):
+        m = self.thing({"id": ident, "name": "Thing"} if presentation else None, ident)
+        write(m.folder / "panel.json", panel if isinstance(panel, str) else json.dumps(panel))
+        return m
+
+    def app_tree(self, m):
+        scratch = self.root / "build/app"
+        wstest.prepare_tree(self.lab, scratch, [m], panels=True, keep=wstest.APP_KEEP)
+        return scratch
+
+    def test_panel_is_written_without_spdx_and_indexed_once(self):
+        m = self.panel({"SPDX-License-Identifier": "GPL-3.0-only", "width": 7, "hidden": ["a"]})
+        scratch = self.app_tree(m)
+        panels = scratch / wstest.PANELS_DIR
+        self.assertEqual(json.loads((panels / "test.thing.json").read_text()), {"width": 7, "hidden": ["a"]})
+        self.assertEqual(json.loads((panels / "index.json").read_text()), ["essentials.existing", "test.thing"])
+        self.assertFalse((scratch / "modules/thing/panel.json").exists())
+        self.app_tree(m)  # rerun: no duplicate
+        self.assertEqual(json.loads((panels / "index.json").read_text()), ["essentials.existing", "test.thing"])
+
+    def test_panel_for_an_override_replaces_the_lab_file(self):
+        folder = self.root / "modules/existing"
+        module(folder, "existing::Existing")
+        write(folder / "dsp.h", '#pragma once\nstatic constexpr ws::Info info{"essentials.existing","E",1};\n')
+        write(folder / "panel.json", '{"width": 99}')
+        m = wstest.Module("existing", folder, "override", "existing::Existing")
+        scratch = self.app_tree(m)
+        panels = scratch / wstest.PANELS_DIR
+        self.assertEqual(json.loads((panels / "essentials.existing.json").read_text()), {"width": 99})
+        self.assertEqual(json.loads((panels / "index.json").read_text()), ["essentials.existing"])
+
+    def test_bad_panels_are_refused(self):
+        with self.assertRaisesRegex(wstest.Refused, "id does not match"):
+            self.app_tree(self.panel({"id": "other.id"}))
+        with self.assertRaisesRegex(wstest.Refused, "not JSON"):
+            self.app_tree(self.panel("{nope"))
+        with self.assertRaisesRegex(wstest.Refused, r"unknown keys \['colour'\]"):
+            self.app_tree(self.panel({"colour": "red"}))
+        with self.assertRaisesRegex(wstest.Refused, "one PanelOverride object"):
+            self.app_tree(self.panel("[1]"))
+
+    def test_t0_tree_ignores_panel_json(self):
+        m = self.panel({"width": 7})
+        with_panel = wstest.prepare_tree(self.lab, self.root / "build/scratch", [m])
+        (m.folder / "panel.json").unlink()
+        without = wstest.prepare_tree(self.lab, self.root / "build/scratch2", [m])
+        self.assertEqual(sorted(with_panel), sorted(without))
+        self.assertFalse(any(k.startswith(wstest.PANELS_DIR + "/test.") for k in with_panel))
+        self.assertFalse((self.root / "build/scratch/modules/thing/panel.json").exists())
+        self.assertEqual(json.loads((self.root / "build/scratch" / wstest.PANELS_DIR / "index.json").read_text()),
+                         ["essentials.existing"])
+
+    def test_app_refresh_keeps_installs_and_follows_edits(self):
+        m = self.panel({"width": 7})
+        scratch, _ = wstest.prepare_app_tree(self.lab, [m])
+        write(scratch / "apps/studio/node_modules/x/index.js", "// installed")
+        tracked = self.lab.tracked()
+        write(m.folder / "panel.json", '{"width": 8}')
+        write(m.folder / "presentation.json", json.dumps({"id": "test.thing", "name": "Renamed"}))
+        wstest.refresh_app_files(self.lab, scratch, [m], tracked)
+        self.assertEqual(json.loads((scratch / wstest.PANELS_DIR / "test.thing.json").read_text()), {"width": 8})
+        self.assertEqual(self.sidecar(scratch)["modules"][-1]["name"], "Renamed")
+        (m.folder / "panel.json").unlink()  # removed: the tree is rebuilt, node_modules stays
+        wstest.refresh_app_files(self.lab, scratch, [m], tracked)
+        self.assertFalse((scratch / wstest.PANELS_DIR / "test.thing.json").exists())
+        self.assertTrue((scratch / "apps/studio/node_modules/x/index.js").is_file())
 
     def test_without_presentation_nothing_changes(self):
         scratch = self.root / "build/scratch"

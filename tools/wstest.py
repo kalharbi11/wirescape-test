@@ -12,6 +12,10 @@ Devices stay off: nothing here opens audio, MIDI or a LAN socket.
   t2 <module>                full lab build and CTest, demo matrix, callgrind, Cortex-M7 (advisory)
   selftest                   T0 on tools/fixtures; outcomes must match tools/fixtures/expected.json
   scope                      CI: which modules a change touches (and whether everything runs)
+  app <module>...            local convenience (not a test tier): scratch lab copy with panel.json
+                             files, engine + Studio + desktop build; --launch starts the real app
+  ui <module>...             local convenience: Studio dev server in a browser (fake engine), with
+                             panel.json / presentation.json save-and-reload
 
 A <module> is a folder name under modules/ (else under tools/fixtures/), or a path to a module folder.
 """
@@ -25,7 +29,9 @@ import math
 import os
 import platform
 import re
+import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -43,6 +49,14 @@ SIDECAR = "apps/studio/public/catalogue-presentation.json"
 UI_CATALOGUE = "apps/studio/public/wirescape_modules.json"
 UI_GENERATOR = "tools/gen_ui_catalogue.py"
 S0_FIXTURE = "host/sidecar/testdata/s0_catalogue.ndjson"
+PANELS_DIR = "apps/studio/public/panels"
+PANEL_FILE = "panel.json"
+# Keys of Studio's PanelOverride (apps/studio/src/panels/layouts.ts) plus the licence key.
+PANEL_KEYS = ("width", "code", "layout", "sections", "short", "roles", "widgets", "panes",
+              "paneOptions", "hidden", "modPorts", "ports")
+APP_KEEP = ("apps/studio/node_modules", "apps/studio/dist", "apps/desktop/node_modules",
+            "apps/desktop/build")  # survive an app-tree refresh so npm and Vite stay incremental
+
 INFO_RE = re.compile(r'ws::Info\s+info\s*\{\s*"([^"]+)"')
 T0_TARGETS = ("wirescape_render", "abi2_module_cpu_probe")
 SANITIZE_FLAGS = "-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer"
@@ -161,7 +175,9 @@ def folder_files(folder: Path) -> dict[str, Path]:
         if path.is_symlink():
             raise Refused(f"{folder.name}: symbolic links are not allowed in a module folder: {path.name}")
         if path.is_file() and "__pycache__" not in path.parts:
-            files[path.relative_to(folder).as_posix()] = path
+            rel = path.relative_to(folder).as_posix()
+            if rel != PANEL_FILE:  # Studio layout, never a module file (it goes to panels/ in the app tree)
+                files[rel] = path
     return files
 
 
@@ -298,7 +314,48 @@ def presentation_edit(lab_dir: Path, modules: list[Module]) -> dict[str, str]:
     return {SIDECAR: json.dumps(sidecar, indent=1, ensure_ascii=False) + "\n"}
 
 
-def expected_tree(lab: Lab, tracked: list[str], modules: list[Module]) -> dict[str, tuple[str, Path | bytes]]:
+def panel_entry(m: Module) -> tuple[str, dict] | None:
+    """The module's panel.json as (module id, PanelOverride object), or None without one."""
+    path = m.folder / PANEL_FILE
+    if not path.is_file():
+        return None
+    try:
+        entry = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as error:
+        raise Refused(f"{m.name}/{PANEL_FILE} is not JSON: {error}")
+    if not isinstance(entry, dict):
+        raise Refused(f"{m.name}/{PANEL_FILE} must hold one PanelOverride object")
+    entry.pop("SPDX-License-Identifier", None)
+    ident = module_info_id(m.folder)
+    if not ident:
+        raise Refused(f"{m.name}: no ws::Info id found in dsp.h for {PANEL_FILE}")
+    if "id" in entry:
+        if entry.pop("id") != ident:
+            raise Refused(f"{m.name}/{PANEL_FILE} id does not match dsp.h {ident!r}")
+    unknown = sorted(set(entry) - set(PANEL_KEYS))
+    if unknown:
+        raise Refused(f"{m.name}/{PANEL_FILE} has unknown keys {unknown}; allowed: {', '.join(PANEL_KEYS)}")
+    return ident, entry
+
+
+def panel_edits(lab_dir: Path, modules: list[Module]) -> dict[str, str]:
+    """App tree only: panels/<id>.json per panel.json, and its id in panels/index.json (once)."""
+    found = [e for e in (panel_entry(m) for m in modules) if e]
+    if not found:
+        return {}
+    index_path = lab_dir / PANELS_DIR / "index.json"
+    index = json.loads(index_path.read_text(encoding="utf-8")) if index_path.is_file() else []
+    edits = {}
+    for ident, entry in found:
+        edits[f"{PANELS_DIR}/{ident}.json"] = json.dumps(entry, indent=2, ensure_ascii=False) + "\n"
+        if ident not in index:
+            index.append(ident)
+    edits[f"{PANELS_DIR}/index.json"] = json.dumps(index, indent=1, ensure_ascii=False) + "\n"
+    return edits
+
+
+def expected_tree(lab: Lab, tracked: list[str], modules: list[Module],
+                  panels: bool = False) -> dict[str, tuple[str, Path | bytes]]:
     """relative path -> ("lab"|"module"|"edit", source) for every file the scratch tree must hold."""
     replaced = {m.name for m in modules}
     tree: dict[str, tuple[str, Path | bytes]] = {}
@@ -310,19 +367,36 @@ def expected_tree(lab: Lab, tracked: list[str], modules: list[Module]) -> dict[s
     for m in modules:
         for rel, path in folder_files(m.folder).items():
             tree[f"modules/{m.name}/{rel}"] = ("module", path)
-    for rel, text in {**registration_edits(lab.dir, modules), **presentation_edit(lab.dir, modules)}.items():
+    extra = panel_edits(lab.dir, modules) if panels else {}
+    for rel, text in {**registration_edits(lab.dir, modules), **presentation_edit(lab.dir, modules),
+                      **extra}.items():
         tree[rel] = ("edit", text.encode("utf-8"))
     return tree
 
 
-def scratch_files(scratch: Path) -> set[str]:
-    return {p.relative_to(scratch).as_posix() for p in scratch.rglob("*")
-            if (p.is_file() or p.is_symlink()) and "__pycache__" not in p.parts}
+def walk_files(root: Path, keep: tuple[str, ...] = ()):
+    """(relative posix path of every file or symlink, skipping __pycache__ and the keep subtrees)."""
+    for here, dirs, files in os.walk(root):
+        rel_dir = Path(here).relative_to(root).as_posix()
+        rel_dir = "" if rel_dir == "." else rel_dir
+        dirs[:] = [d for d in dirs if d != "__pycache__"
+                   and (f"{rel_dir}/{d}" if rel_dir else d) not in keep]
+        for d in list(dirs):  # a symlinked directory counts as one entry
+            if (Path(here) / d).is_symlink():
+                dirs.remove(d)
+                yield f"{rel_dir}/{d}" if rel_dir else d
+        for f in files:
+            yield f"{rel_dir}/{f}" if rel_dir else f
 
 
-def verify_scratch(scratch: Path, tree: dict) -> None:
-    """Refuse any scratch change other than the module folders and the registration edits."""
-    actual = scratch_files(scratch)
+def scratch_files(scratch: Path, keep: tuple[str, ...] = ()) -> set[str]:
+    return set(walk_files(scratch, keep))
+
+
+def verify_scratch(scratch: Path, tree: dict, keep: tuple[str, ...] = ()) -> None:
+    """Refuse any scratch change other than the module folders and the registration edits.
+    `keep` (app tree only) names install and build outputs that are not part of the check."""
+    actual = scratch_files(scratch, keep)
     extra, missing = sorted(actual - tree.keys()), sorted(tree.keys() - actual)
     changed = []
     for rel in sorted(actual & tree.keys()):
@@ -337,18 +411,44 @@ def verify_scratch(scratch: Path, tree: dict) -> None:
                       + detail + "). A module that needs a lab change files a `limitation found` issue.")
 
 
-def prepare_tree(lab: Lab, dest: Path, modules: list[Module]) -> dict:
-    """Recreate dest from the pin, apply the module folders and registration, then verify."""
+def run_ui_generator(dest: Path) -> bytes:
+    """§9.1 rule 2: the pin's own generator, unmodified, without --check. Its output is the only
+    other allowed difference; verify_scratch refuses anything else it touches."""
+    result = run([sys.executable, str(dest / UI_GENERATOR)], cwd=dest, timeout=300)
+    if result.returncode:
+        raise Refused(f"{UI_GENERATOR} refused the presentation.json entries:\n"
+                      + tail(result.stdout + result.stderr, 10))
+    return (dest / UI_CATALOGUE).read_bytes()
+
+
+def clean_except(dest: Path, keep: tuple[str, ...]) -> None:
+    """Empty dest but leave the `keep` subtrees (relative, posix) in place."""
+    for rel in list(walk_files(dest, keep)):
+        (dest / rel).unlink()
+    for here, dirs, _ in os.walk(dest, topdown=False):
+        rel = Path(here).relative_to(dest).as_posix()
+        if rel == "." or any(k == rel or k.startswith(rel + "/") or rel.startswith(k + "/") for k in keep):
+            continue
+        if not os.listdir(here):
+            os.rmdir(here)
+
+
+def prepare_tree(lab: Lab, dest: Path, modules: list[Module], panels: bool = False,
+                 keep: tuple[str, ...] = ()) -> dict:
+    """Recreate dest from the pin, apply the module folders and registration, then verify.
+    `panels` (the app tree) also writes panels/<id>.json; `keep` leaves install outputs in place."""
     tracked = lab.tracked()
-    tree = expected_tree(lab, tracked, modules)
+    tree = expected_tree(lab, tracked, modules, panels)
     stamp_path = dest.parent / f"{dest.name}.stamp.json"
     try:
         previous = json.loads(stamp_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         previous = {}
-    if dest.exists():
+    if dest.exists() and keep:
+        clean_except(dest, keep)
+    elif dest.exists():
         shutil.rmtree(dest)
-    dest.mkdir(parents=True)
+    dest.mkdir(parents=True, exist_ok=True)
     stamp = {}
     for rel, (kind, source) in tree.items():
         target = dest / rel
@@ -363,13 +463,7 @@ def prepare_tree(lab: Lab, dest: Path, modules: list[Module]) -> dict:
         if kind != "lab":
             stamp[rel] = sha256(target.read_bytes())
     if SIDECAR in tree and tree[SIDECAR][0] == "edit" and (dest / UI_GENERATOR).is_file():
-        # §9.1 rule 2: the pin's own generator, unmodified, without --check. Its output is the only
-        # other allowed difference; verify_scratch refuses anything else it touches.
-        result = run([sys.executable, str(dest / UI_GENERATOR)], cwd=dest, timeout=300)
-        if result.returncode:
-            raise Refused(f"{UI_GENERATOR} refused the presentation.json entries:\n"
-                          + tail(result.stdout + result.stderr, 10))
-        generated = (dest / UI_CATALOGUE).read_bytes()
+        generated = run_ui_generator(dest)
         tree[UI_CATALOGUE] = ("edit", generated)
         stamp[UI_CATALOGUE] = sha256(generated)
     # Ninja rebuilds by mtime. Files that differ from the pin (now or in the last run) get a fresh
@@ -390,7 +484,7 @@ def prepare_tree(lab: Lab, dest: Path, modules: list[Module]) -> dict:
             times[rel] = now
     stamp_path.write_text(json.dumps({"hashes": stamp, "mtimes": {k: v for k, v in times.items()
                                                                   if k in stamp}}), encoding="utf-8")
-    verify_scratch(dest, tree)
+    verify_scratch(dest, tree, keep)
     return tree
 
 
@@ -1101,6 +1195,169 @@ def cortex_m7(session: Session, m: Module) -> dict:
     return {"status": "advisory", "compiles": True, "heap_symbols": heap, "double_symbols": doubles}
 
 
+# --------------------------------------------------------------------------- app and ui (local only)
+# Developer conveniences, not test tiers: nothing here changes T0/T1/T2 or build/scratch-<sha7>/.
+
+def app_modules(args, lab: Lab) -> list[Module]:
+    modules = [resolve_module(a) for a in args.modules]
+    names = [m.name for m in modules]
+    if len(set(names)) != len(names):
+        raise Refused("a module name is given twice")
+    for m in modules:
+        m.kind = "override" if (lab.dir / "modules" / m.name).is_dir() else "new"
+        m.cls = registration_class(m.folder)
+    return modules
+
+
+def tool_path(name: str) -> str:
+    found = shutil.which(name + (".cmd" if os.name == "nt" else "")) or shutil.which(name)
+    if not found:
+        raise Refused(f"{name} not found on PATH (Node 20+ is required)")
+    return found
+
+
+def npm_install(scratch: Path, sub: str) -> None:
+    """npm ci in scratch/<sub> when node_modules is missing or package-lock.json changed."""
+    folder = scratch / sub
+    lock = folder / "package-lock.json"
+    if not lock.is_file():
+        raise Refused(f"{sub}/package-lock.json is missing in the pin")
+    stamp_path = scratch.parent / f"{scratch.name}.npm.json"
+    try:
+        stamps = json.loads(stamp_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        stamps = {}
+    digest = sha256(lock.read_bytes())
+    if (folder / "node_modules").is_dir() and stamps.get(sub) == digest:
+        return
+    log(f"npm ci in {sub} (first run or package-lock.json changed)")
+    stamps.pop(sub, None)
+    result = run([tool_path("npm"), "ci", "--no-audit", "--no-fund"], cwd=folder, timeout=1800, capture=False)
+    if result.returncode:
+        raise Refused(f"npm ci failed in {sub} (exit {result.returncode})")
+    stamps[sub] = digest
+    stamp_path.write_text(json.dumps(stamps), encoding="utf-8")
+
+
+def prepare_app_tree(lab: Lab, modules: list[Module]) -> tuple[Path, dict]:
+    scratch = lab.root / "build" / f"app-{lab.sha7}"
+    return scratch, prepare_tree(lab, scratch, modules, panels=True, keep=APP_KEEP)
+
+
+def refresh_app_files(lab: Lab, scratch: Path, modules: list[Module], tracked: list[str]) -> dict:
+    """Re-apply only the edited files (panels, sidecar, regenerated catalogue) to a prepared app tree."""
+    tree = expected_tree(lab, tracked, modules, panels=True)
+    try:
+        for rel, (kind, source) in tree.items():
+            if kind == "edit":
+                (scratch / rel).parent.mkdir(parents=True, exist_ok=True)
+                (scratch / rel).write_bytes(source)
+        if SIDECAR in tree and (scratch / UI_GENERATOR).is_file():
+            tree[UI_CATALOGUE] = ("edit", run_ui_generator(scratch))
+        verify_scratch(scratch, tree, APP_KEEP)
+    except Refused as error:
+        if "scratch tree differs" not in str(error):
+            raise
+        return prepare_app_tree(lab, modules)[1]  # e.g. a panel.json was removed: rebuild the tree
+    return tree
+
+
+def launch_command(scratch: Path, engine: Path) -> list[str]:
+    electron = scratch / "apps/desktop/node_modules/.bin" / ("electron.cmd" if os.name == "nt" else "electron")
+    return [str(electron), ".", "--engine", str(engine)]
+
+
+def cmd_app(args) -> int:
+    lab = Lab()
+    lab.fetch(git_deps=args.git_deps)
+    modules = app_modules(args, lab)
+    scratch, _ = prepare_app_tree(lab, modules)
+    build_dir = ROOT / "build" / f"wstest-{lab.sha7}" / "app"
+    log("building wirescape-engine (CMake target wirescape_engine_sidecar) ...")
+    ok, detail = cmake_build(lab, scratch, build_dir, ["wirescape_engine_sidecar"], False, args.config)
+    if not ok:
+        raise Refused(detail)
+    engine = binary(build_dir, "wirescape-engine", args.config).resolve()
+    npm_install(scratch, "apps/studio")
+    npm_install(scratch, "apps/desktop")
+    log("building Studio and the desktop app (npm run build in apps/desktop) ...")
+    result = run([tool_path("npm"), "run", "build"], cwd=scratch / "apps/desktop", timeout=1800, capture=False)
+    if result.returncode:
+        raise Refused(f"npm run build failed in apps/desktop (exit {result.returncode})")
+    command = launch_command(scratch, engine)
+    printable = subprocess.list2cmdline(command) if os.name == "nt" else shlex.join(command)
+    log(f"ready. Launch (from {scratch / 'apps/desktop'}):\n    {printable}")
+    if not args.launch:
+        log("not launching: the app can open audio devices; the owner adds --launch")
+        return 0
+    log("launching the desktop app (Ctrl+C or close the window to stop)")
+    try:
+        return subprocess.call(command, cwd=str(scratch / "apps/desktop"))
+    except KeyboardInterrupt:
+        return 0
+
+
+def stop_process(proc: subprocess.Popen) -> None:
+    if proc.poll() is not None:
+        return
+    try:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True, check=False)
+        else:
+            os.killpg(proc.pid, signal.SIGTERM)
+        proc.wait(timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        proc.kill()
+
+
+def watched(modules: list[Module]) -> dict[str, int]:
+    state = {}
+    for m in modules:
+        for name in (PANEL_FILE, "presentation.json"):
+            path = m.folder / name
+            state[str(path)] = path.stat().st_mtime_ns if path.is_file() else 0
+    return state
+
+
+def cmd_ui(args) -> int:
+    lab = Lab()
+    lab.fetch(git_deps=args.git_deps)
+    modules = app_modules(args, lab)
+    scratch, tree = prepare_app_tree(lab, modules)
+    if not any((m.folder / "presentation.json").is_file() for m in modules):
+        log("warning: no module has a presentation.json, so none is in the UI catalogue yet")
+    log(f"app tree ready: build/app-{lab.sha7}/ (no C++ build; Studio uses its fake engine, no sound)")
+    if args.no_serve:
+        return 0
+    npm_install(scratch, "apps/studio")
+    command = [tool_path("npm"), "run", "dev", "--", "--port", str(args.port), "--strictPort"]
+    options = {"start_new_session": True} if os.name != "nt" else {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+    proc = subprocess.Popen(command, cwd=str(scratch / "apps/studio"), **options)
+    log(f"Studio dev server: http://localhost:{args.port}/  (edit modules/<name>/panel.json or presentation.json; "
+        "Ctrl+C stops)")
+    tracked = lab.tracked()
+    state = watched(modules)
+    try:
+        while proc.poll() is None:
+            time.sleep(0.5)
+            now = watched(modules)
+            if now == state:
+                continue
+            state = now
+            try:
+                refresh_app_files(lab, scratch, modules, tracked)
+                log("updated — reload the browser")
+            except Refused as error:
+                log(f"refused, the browser keeps the last good version: {error}")
+        log(f"the dev server stopped (exit {proc.returncode})")
+        return proc.returncode or 0
+    except KeyboardInterrupt:
+        log("stopping the dev server")
+        return 0
+    finally:
+        stop_process(proc)
+
+
 # --------------------------------------------------------------------------- CI scope
 
 SCOPE_ALL = ("tools/", ".github/workflows/", "LAB_PIN")
@@ -1176,6 +1433,19 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("module")
     p.add_argument("--out", help="where to write t2.json")
     p.set_defaults(func=cmd_t2, sanitize=False)
+    p = sub.add_parser("app", help="local only: scratch lab copy with panel.json, engine + Studio + desktop "
+                       "build; prints the Electron launch command")
+    common(p)
+    p.add_argument("--launch", action="store_true",
+                   help="start the desktop app. It may open audio devices: only the owner passes this, "
+                        "never agents or CI")
+    p.set_defaults(func=cmd_app)
+    p = sub.add_parser("ui", help="local only: Studio dev server (fake engine, no build) with save-and-reload "
+                       "of panel.json and presentation.json")
+    common(p)
+    p.add_argument("--port", type=int, default=5173)
+    p.add_argument("--no-serve", action="store_true", help="prepare the tree and exit (tests)")
+    p.set_defaults(func=cmd_ui)
     p = sub.add_parser("scope")
     p.add_argument("--base")
     p.add_argument("--head")

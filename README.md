@@ -48,6 +48,7 @@ python tools/wstest.py t0 <name>             # check, build, tests, demo renders
 python tools/wstest.py identical <name>      # overrides: byte-identical renders at default parameters
 ```
 Requirements: Python 3.10+, CMake, Ninja, a C++17 compiler (MSVC on Windows), and git.
+Local prototyping in the real app or a browser (`wstest app`, `wstest ui`, `panel.json`): [PROTOTYPING.md](PROTOTYPING.md).
 
 ## Test tiers
 | Tier | Runs | What |
