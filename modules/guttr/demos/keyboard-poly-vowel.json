@@ -1,0 +1,31 @@
+{
+  "SPDX-License-Identifier":"GPL-3.0-only","name":"GUTTR through host.keyboard (4 voices): each voice's pitch modulates its own note's vowel (per-voice, poly modulation cable), then release to silence","rate":48000,"block":128,"seconds":6,"seed":5,"peak_limit":1.0,
+  "patch":{"format":"wirescape.native.patch","version":2,"settings":{"seed":5},"name":"Demo: GUTTR per-voice vowel",
+    "modules":[
+      {"id":1,"module":"host.keyboard","version":1,"parameters":{"voices":4}},
+      {"id":2,"module":"guttr","version":1,"parameters":{"vowel":0.4,"throats":2,"pressure":0.6}},
+      {"id":3,"module":"essentials.mixer","version":2,"parameters":{"level_a":0.5,"level_b":0.5}},
+      {"id":4,"module":"essentials.output","version":2,"parameters":{}}
+    ],
+    "connections":[
+      {"kind":"event","from":{"module":1,"port":"notes"},"to":{"module":2,"port":"notes"}},
+      {"kind":"modulation","from":{"module":1,"port":"pitch"},"to":{"module":2,"port":"vowel"},"amount":0.35},
+      {"kind":"signal","from":{"module":2,"port":"left"},"to":{"module":3,"port":"a"}},
+      {"kind":"signal","from":{"module":2,"port":"right"},"to":{"module":3,"port":"b"}},
+      {"kind":"signal","from":{"module":3,"port":"audio"},"to":{"module":4,"port":"audio"}}
+    ],
+    "outputs":[{"module":4,"port":"audio","bus_channel":0},{"module":4,"port":"audio","bus_channel":1}]
+  },
+  "events":[
+    {"frame":4800,"type":"noteOn","node":1,"key":48},
+    {"frame":14400,"type":"noteOn","node":1,"key":55},
+    {"frame":24000,"type":"noteOn","node":1,"key":62},
+    {"frame":33600,"type":"noteOn","node":1,"key":69},
+    {"frame":76800,"type":"noteOff","node":1,"key":48},
+    {"frame":76800,"type":"noteOff","node":1,"key":55},
+    {"frame":76800,"type":"noteOff","node":1,"key":62},
+    {"frame":76800,"type":"noteOff","node":1,"key":69}
+  ],
+  "windows":[{"kind":"silent","start":0,"end":4000},{"kind":"active","start":14400,"end":75000},{"kind":"silent","start":250000,"end":288000}],
+  "frequencies":[]
+}

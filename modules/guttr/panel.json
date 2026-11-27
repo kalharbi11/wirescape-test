@@ -1,0 +1,117 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "code": "GUTTR",
+  "layout": "wide",
+  "sections": [
+    {
+      "label": "01 / PHONATION",
+      "columns": 4,
+      "params": [
+        "pressure",
+        "breath",
+        "whisper",
+        "style"
+      ]
+    },
+    {
+      "label": "02 / INSTABILITY",
+      "columns": 5,
+      "params": [
+        "jitter",
+        "shimmer",
+        "tremor",
+        "wander",
+        "vibrato"
+      ]
+    },
+    {
+      "label": "03 / TEXTURE",
+      "columns": 6,
+      "params": [
+        "growl",
+        "creak",
+        "tail_fry",
+        "flutter",
+        "rasp",
+        "breaks"
+      ]
+    },
+    {
+      "label": "04 / TRACT",
+      "columns": 5,
+      "params": [
+        "size",
+        "pharynx",
+        "mouth",
+        "ring",
+        "vowel"
+      ]
+    },
+    {
+      "label": "05 / ENSEMBLE",
+      "columns": 4,
+      "params": [
+        "throats",
+        "looseness",
+        "spread",
+        "size_spread"
+      ]
+    },
+    {
+      "label": "06 / ENVELOPE",
+      "columns": 3,
+      "params": [
+        "attack",
+        "release",
+        "glide"
+      ]
+    },
+    {
+      "label": "07 / SPACE",
+      "columns": 5,
+      "params": [
+        "distance",
+        "azimuth",
+        "room",
+        "decay",
+        "wet"
+      ]
+    },
+    {
+      "label": "08 / OUTPUT",
+      "columns": 5,
+      "params": [
+        "drive",
+        "body",
+        "air",
+        "level",
+        "grit_after"
+      ]
+    }
+  ],
+  "short": {
+    "tail_fry": "TAIL FRY",
+    "size_spread": "SIZE SPR",
+    "looseness": "LOOSE",
+    "distance": "DIST",
+    "azimuth": "AZIM",
+    "grit_after": "POST GRIT",
+    "vibrato": "VIB"
+  },
+  "roles": {
+    "vowel": "hero",
+    "pressure": "primary",
+    "breath": "secondary",
+    "attack": "secondary",
+    "throats": "number",
+    "azimuth": "trim",
+    "body": "trim",
+    "air": "trim",
+    "level": "trim",
+    "grit_after": "toggle"
+  },
+  "modPorts": [
+    "vowel",
+    "pressure"
+  ]
+}

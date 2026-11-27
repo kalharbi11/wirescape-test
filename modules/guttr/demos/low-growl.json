@@ -1,0 +1,22 @@
+{
+  "SPDX-License-Identifier":"GPL-3.0-only","name":"GUTTR: one low note (C2) with heavy texture (growl, creak, rasp, flutter, tail fry, breaks, drive), four throats, then release to silence","rate":48000,"block":128,"seconds":7,"seed":11,"peak_limit":1.0,
+  "patch":{"format":"wirescape.native.patch","version":2,"settings":{"seed":11},"name":"Demo: GUTTR low growl",
+    "modules":[
+      {"id":1,"module":"guttr","version":1,"parameters":{"pressure":0.72,"growl":0.85,"creak":0.3,"tail_fry":0.6,"flutter":0.35,"rasp":0.5,"breaks":0.3,"size":19.8,"pharynx":0.2,"vowel":0.3,"style":0.7,"throats":4,"looseness":0.5,"drive":0.3,"jitter":2.2,"shimmer":6}},
+      {"id":2,"module":"essentials.mixer","version":2,"parameters":{"level_a":0.5,"level_b":0.5}},
+      {"id":3,"module":"essentials.output","version":2,"parameters":{}}
+    ],
+    "connections":[
+      {"kind":"signal","from":{"module":1,"port":"left"},"to":{"module":2,"port":"a"}},
+      {"kind":"signal","from":{"module":1,"port":"right"},"to":{"module":2,"port":"b"}},
+      {"kind":"signal","from":{"module":2,"port":"audio"},"to":{"module":3,"port":"audio"}}
+    ],
+    "outputs":[{"module":3,"port":"audio","bus_channel":0},{"module":3,"port":"audio","bus_channel":1}]
+  },
+  "events":[
+    {"frame":2400,"type":"noteOn","node":1,"key":36},
+    {"frame":96000,"type":"noteOff","node":1,"key":36}
+  ],
+  "windows":[{"kind":"silent","start":0,"end":2000},{"kind":"active","start":14400,"end":94000},{"kind":"silent","start":300000,"end":336000}],
+  "frequencies":[]
+}
