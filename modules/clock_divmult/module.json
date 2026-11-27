@@ -1,0 +1,26 @@
+{
+  "schema_version": 2,
+  "id": "essentials.clock_divmult",
+  "name": "Clock Div/Mult",
+  "abi_version": 2,
+  "library": "ws2_clock_divmult",
+  "description": "Four gate outputs that divide or multiply the beat of a clock cable or the transport, ÷16 to ×16, with gate width",
+  "parameters": {
+    "ratio1": 0,
+    "ratio2": 1,
+    "ratio3": 2,
+    "ratio4": 3,
+    "width": 4
+  },
+  "inputs": {
+    "clock": "signal",
+    "reset": "signal"
+  },
+  "outputs": {
+    "out1": "signal",
+    "out2": "signal",
+    "out3": "signal",
+    "out4": "signal"
+  },
+  "license": "GPL-3.0-only"
+}
