@@ -35,6 +35,18 @@ If a proxy blocks `codeload.github.com`, add `--git-deps`: it runs the pinned la
 T0 stops a module at its first failing step and names it. Results go to `build/wstest-out/<variant>/`
 (`t0.json`, `check.json`, `cpu_probe.json`, the demo WAVs); CI uploads that folder as an artifact.
 
+## MB1 compatibility (lab A106)
+
+Pins containing the MB1 descriptor-equality witness prepare a scratch tree before the normal build:
+configure a fresh out-of-tree build, build only its `wire-describe` target, and run the pin's
+`tools/gen_ui_catalogue.py --describe <scratch build>/wire-describe`. Missing targets or generated
+known-ID drift refuse registration. Only two more scratch paths are permitted:
+`tools/foundation/fixtures/known_module_ids.txt` (checked against the live descriptor's sorted IDs)
+and `bench/module_sets.json` (only staged new IDs appended to `experimental`, all existing bytes retained;
+overrides add nothing). Older pins continue to use their original generator. The UI, S0 and
+`abi2_wire_describe_equality` gates are unchanged. The descriptor build is isolated from the full build,
+and no binary from another scratch or the host is used.
+
 ## T2 verdict
 T2 fails on a full-build failure, any failing lab CTest, a demo-matrix row that is not finite, over its
 peak or not byte-identical across two runs, or an engine-limit probe that cannot render 48 kHz/128.
@@ -59,7 +71,7 @@ Only `app` and `ui` use it: they prepare `build/app-<sha7>/` like T0's tree plus
   and `apps/desktop` only when `node_modules` is missing or `package-lock.json` changed, runs
   `npm run build` in `apps/desktop` (it builds Studio too) and prints the Electron command. Only `--launch`
   starts the app; it may open audio devices, so agents and CI never pass it.
-- `ui`: no C++ build; runs `npm run dev -- --port N --strictPort` in the app tree and polls `panel.json` and
+- `ui`: no engine build (MB1 pins require the descriptor-only build above); runs `npm run dev -- --port N --strictPort` in the app tree and polls `panel.json` and
   `presentation.json` every 0.5 s, re-applying them (and re-running the pin's `gen_ui_catalogue.py`).
   `--no-serve` prepares the tree and exits.
 `node_modules`, `dist` and `build` inside the app tree survive a refresh.

@@ -20,10 +20,14 @@ module registered and its `panel.json` applied, then starts the app. After a DSP
 the command again; only changed files rebuild. Without `--launch` it prints the exact launch command.
 The app can open your audio device: only you pass `--launch`; agents and CI never do.
 
-**c. UI only, no C++ build.** `python tools/wstest.py ui <name>...` then open the printed address
+**c. UI only, no engine build.** `python tools/wstest.py ui <name>...` then open the printed address
 (`--port N`, default 5173). In a plain browser Studio uses its fake engine, so you see the module's panel with
 no sound. Edit `modules/<name>/panel.json` or `presentation.json`, save, and the command prints
 `updated — reload the browser`. Ctrl+C stops it. The module needs a `presentation.json` to be in the catalogue.
+
+On MB1-containing pins, scratch preparation (including UI refresh) builds the scratch's own
+`wire-describe` before regenerating the catalogue (A106). It does not build or launch the engine.
+Older pins retain the no-C++-build UI path.
 
 `npm ci` runs on the first use and again only when the lab's `package-lock.json` changes.
 
