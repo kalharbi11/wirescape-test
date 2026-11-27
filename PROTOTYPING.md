@@ -92,7 +92,7 @@ The id is the one in `dsp.h`; the file may omit `id`, and if it has one it must 
 - Live module telemetry in the panel.
 - Parameters you do not place in a section still appear, under "MORE". `hidden` removes one from the card
   but keeps it saved and modulatable.
-- Anything that needs a Studio or engine change beyond the workshop overlay is a lab issue labelled `limitation found` (AGENTS.md rule 2).
+- Anything that needs a Studio or engine change beyond the workshop overlay is recorded in `LAB_REQUESTS.md` (AGENTS.md rule 2); file in the lab only on owner request.
 
 ## Where files go
 `build/app-<sha7>/` is the app copy (pin + your folders + registration + `presentation.json` + panel files).

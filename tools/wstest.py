@@ -1443,17 +1443,29 @@ def load_overlay(lab: Lab) -> dict[str, bytes]:
     """The workshop Studio files for the app tree. Refuses when a pinned file they replace differs
     from the one BASE.json was taken from (a pin bump that touched it), or the overlay strays."""
     files = overlay_files(lab.root)
-    if not files:
+    manifest = lab.root / STUDIO_OVERLAY / "BASE.json"
+    if not files and not manifest.exists():
         return {}
     try:
-        base = json.loads((lab.root / STUDIO_OVERLAY / "BASE.json").read_text(encoding="utf-8"))["files"]
-    except (OSError, ValueError, KeyError):
+        base = json.loads(manifest.read_text(encoding="utf-8"))["files"]
+    except (OSError, ValueError, KeyError, TypeError):
         raise Refused(f"{STUDIO_OVERLAY}/BASE.json is missing or unreadable")
+    if not isinstance(base, dict):
+        raise Refused(f"{STUDIO_OVERLAY}/BASE.json files must be a mapping")
     stray = [rel for rel in files if not rel.startswith(STUDIO_PREFIX)]
     unlisted = [rel for rel in files if rel not in base]
     if stray or unlisted:
         raise Refused(f"{STUDIO_OVERLAY} holds files outside {STUDIO_PREFIX} or missing from BASE.json: "
                       + ", ".join((stray + unlisted)[:8]))
+    for rel, digest in base.items():
+        if (not rel.startswith(STUDIO_PREFIX) or "\\" in rel or ":" in rel
+                or any(part in ("", ".", "..") for part in rel.split("/"))):
+            raise Refused(f"BASE.json requires normalized {STUDIO_PREFIX} paths: {rel}")
+        if digest is not None and (not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)):
+            raise Refused(f"BASE.json invalid SHA-256: {rel}")
+    missing = sorted(set(base) - set(files))
+    if missing:
+        raise Refused("BASE.json lists missing overlay files: " + ", ".join(missing))
     stale = []
     for rel, digest in base.items():
         pinned = lab.dir / rel
@@ -1641,6 +1653,7 @@ const { chromium } = require('@playwright/test');
   const [url, out, theme, id] = process.argv.slice(2);
   const exe = process.env.WIRESCAPE_CHROMIUM;
   const browser = await chromium.launch(exe ? { executablePath: exe } : {});
+  try {
   const page = await browser.newPage({ viewport: { width: 1800, height: 1600 }, deviceScaleFactor: 2 });
   const errors = [];
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
@@ -1658,10 +1671,24 @@ const { chromium } = require('@playwright/test');
   await card.screenshot({ path: out });
   console.log(`card ${Math.round(box.width)} x ${Math.round(box.height)} CSS px, console errors: ${errors.length}`);
   for (const e of errors) console.log('  ' + e);
-  await browser.close();
-  process.exit(errors.length ? 1 : 0);
-})();
+  process.exitCode = errors.length ? 1 : 0;
+  } finally {
+    await browser.close();
+  }
+})().catch(error => { console.error(error); process.exitCode = 1; });
 """
+
+
+def shot_chromium(browser_root: Path = Path("/opt/pw-browsers/chromium")) -> str | None:
+    """Prefer explicit or preinstalled Chromium; otherwise use Playwright's default."""
+    explicit = os.environ.get("WIRESCAPE_CHROMIUM")
+    if explicit:
+        return explicit
+    candidates = [browser_root] if browser_root.is_file() else sorted(browser_root.glob("**/chrome"))
+    for candidate in candidates:
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
 
 
 def free_port() -> int:
@@ -1704,8 +1731,9 @@ def cmd_shot(args) -> int:
             raise Refused("the Studio dev server did not start within 60 s")
         script = studio / "node_modules" / ".wstest-shot.cjs"
         script.write_text(SHOT_JS, encoding="utf-8")
-        result = run([tool_path("node"), str(script), f"http://localhost:{port}/", str(out),
-                      "dark" if args.dark else "light", ident], cwd=studio, timeout=300)
+        result = run([tool_path("node"), str(script), f"http://127.0.0.1:{port}/", str(out),
+                      "dark" if args.dark else "light", ident], cwd=studio, timeout=300,
+                     env={**os.environ, **({"WIRESCAPE_CHROMIUM": exe} if (exe := shot_chromium()) else {})})
         print(result.stdout, end="")
         if result.returncode:
             print(tail(result.stderr, 10), file=sys.stderr)
