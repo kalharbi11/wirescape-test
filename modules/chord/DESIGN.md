@@ -1,0 +1,40 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+# Chord override — MOD-7-chord (#26)
+
+Original base: wirescape-lab commit `c083b26722b5b4d09e3285ab43f93e93be192f4f`, modules/chord.
+Integration base: `3d3db7a64090682a62f220d73baef49709048c87` (PIN-next #57); original production blobs unchanged.
+Spec: proposal 0024 §4.6. The eight existing stepped, automatable parameters
+(enable1–4 and shift1–4) gain WS2_MODULATABLE; IDs, legacy indices,
+ranges, defaults, port order, state version and all processing stay unchanged.
+
+## Read cadence and realtime
+note_on reads the effective channel-zero enable and shift signals at the
+incoming event's offset. Releases and expressions refer to the previously
+stored pitches and identities, not the current modulation. No allocation,
+locks or I/O; the original fixed activation and pending-release storage is
+unchanged. No new double state.
+
+## Tests
+The tests-first commit adds exact descriptor flags, effective signal reads
+at offsets 0 and 17 for all eight parameters, retained release identities,
+1 and 16 host channels, allocation checks and engine modulation connection
+acceptance. Original pinned identity, capacity, reset and graph tests remain.
+The offline demo routes host.keyboard notes through Chord and Notes to CV,
+then uses allocated pitch/gate lanes to drive VCO/ADSR/VCA;
+wstest identical must compare the unmodulated output with the pristine pin.
+
+## Limitations
+Historical blocker: [LR-11](../../LAB_REQUESTS.md) / [lab #718](https://github.com/kalharbi11/wirescape-lab/issues/718).
+The old pinned isolated CPU probe passed null configuration with zero bytes to
+prepare, whereas Chord requires a unique four-byte graph-instance tag.
+The corrected demo and abi2_chord_tests pass on Linux x64 and ARM64 at
+1adbbad; the CPU probe refuses prepare, so identical is not reached in release.
+No module-local workaround: accepting missing tags would weaken note identity
+isolation. Keep the pinned production contract and all gates intact.
+Original instance-tag alias and activation capacity limits remain as documented
+in README. Lab PR [#724](https://github.com/kalharbi11/wirescape-lab/pull/724) merged the
+CPU-probe fix at `3d3db7a64090682a62f220d73baef49709048c87`. Chord's original
+DSP, module.cpp and module.json blobs are unchanged between that candidate
+and the current pin. Pin PR #57 merged at workshop `ed24cc8`; the fixed lab revision is now pinned.
+Release probe and identical passed on integrated head `758c1f5` on all three release platforms; ASan/UBSan tests/demo passed. Re-run exact-head gates after subsequent index reconciliation before merge.
+Hosted CI is the routine verification environment.

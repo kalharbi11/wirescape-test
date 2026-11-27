@@ -16,8 +16,8 @@ are deliberately not resurrected on restore.
 
 ## MOD-7 batch A (#31)
 
-Base: `c083b26722b5b4d09e3285ab43f93e93be192f4f` (LAB_PIN). Started from a byte copy of the seven
-pinned module files. Only descriptor flags change; existing STEPPED and
+Original base: `c083b26722b5b4d09e3285ab43f93e93be192f4f` (old LAB_PIN). Started from a byte copy of the seven
+pinned module files. Integration base: `3d3db7a64090682a62f220d73baef49709048c87` (PIN-next #57). Only descriptor flags change; existing STEPPED and
 AUTOMATABLE bits remain. No IDs, legacy indices, defaults, state format or
 DSP processing changes. Both process paths sample sustain at frame zero;
 changing from hold to ignore clears pedal-held notes before the event split.
@@ -45,12 +45,11 @@ support is approved. No gate is weakened.
 [LR-12](../../LAB_REQUESTS.md): historical C4 failure on the old pin: on the untouched descriptor, test-first T0 at decafcf
 failed before compilation: `param[2] range/initial invalid: steal_policy`.
 [Job log](https://github.com/kalharbi11/wirescape-test/actions/runs/45970820334/job/140410596032).
-The pinned wsmod validator rejects min == max; the mandated inert parameter
+The old pinned wsmod validator rejected min == max; the mandated inert parameter
 has min=max=default=0. This is tracked in lab #719. No module-local workaround
 without altering the parameter contract or bypassing C4; neither is allowed.
 The new regression was not executed on the old pin. Lab PR [#724](https://github.com/kalharbi11/wirescape-lab/pull/724)
 merged the C4 singleton-range fix at `3d3db7a64090682a62f220d73baef49709048c87`.
 The original DSP, module.cpp, module.json, tests and trigger support are unchanged
 between the old pin and this candidate. PIN-next #57 merged at workshop `ed24cc8`; the singleton fix is now pinned.
-The regression and identical gates must actually execute on the integrated head
-before #31 can merge. LR-13 remains open independently; the idle demo is intentional.
+On new-pin pretest head `75c0485`, all three release platforms passed C4, abi2_midi_to_cv_tests, CPU probe (zero allocations and faults), and byte-identical idle render; ASan/UBSan passed tests and demo. Final integration requires the same gates on the new head before #31 merges. LR-13 remains open independently; the idle demo is intentional.

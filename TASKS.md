@@ -33,8 +33,10 @@ Short lettered bundles (owner, 2026-11-27).
 | Bundle | Tasks in order | Scope | Start condition |
 |---|---|---|---|
 | **G: pin integration** | PIN-next #35 → finish chord #26 (PR #40) → finish midi_to_cv #31 (PR #47) | `LAB_PIN` and pin evidence; then the two existing module PRs | **Lab PR [#724](https://github.com/kalharbi11/wirescape-lab/pull/724) merged** (fixes LR-11 and LR-12). Bump to a lab main commit that contains it. |
-| **H: batch A finish** | MOD-7-quantizer #27 → MOD-7-midi_in audit #32 → MOD-7-notes_to_cv audit #33 | those three folders and their rows | Ready now. No lab dependency. |
-| **A: workshop CI** | CI-app-smoke #23 → CI-windows-app #24 | `tools/**`, workflows, tools docs | Ready now. Never in parallel with G's pin PR: whichever opens first goes first. |
+| **H: batch A finish** (done) | #27, #32, #33 | those three folders and their rows | Merged; no new claim. |
+| **A: workshop CI** | CI-app-smoke #23 (PR #61) → CI-windows-app #24 | `tools/**`, workflows, tools docs | #61 active; preserve its claim. G's pin PR #57 merged. One shared-tool writer. |
+| **I: batch B effects** | MOD-9-delay [#62](https://github.com/kalharbi11/wirescape-test/issues/62) → MOD-9-reverb [#63](https://github.com/kalharbi11/wirescape-test/issues/63) | `modules/delay/**`, then `modules/reverb/**`, own index rows | Unassigned. After MOD-7 completes (#40 and #47 merge). |
+| **J: batch B dynamics and sound** | MOD-9-quad_vca [#64](https://github.com/kalharbi11/wirescape-test/issues/64) → MOD-9-chaos_lite [#65](https://github.com/kalharbi11/wirescape-test/issues/65) → MOD-9-spectral [#66](https://github.com/kalharbi11/wirescape-test/issues/66) | Those three module folders and own index rows | Unassigned. Same MOD-7 gate; may run alongside I. |
 
 **G details.**
 - The bump picks up lab MB1 (first MB1 pin, with the #18 compatibility), the #683 fixes for LR-9 and
@@ -52,8 +54,7 @@ presentation.json, a demo, tests, README and DESIGN. `panel.json` is optional.
 `midi_in/channel_filter` and `notes_to_cv/voices` stay setParam-only (lab 0024 §4.6). Their audits
 document and verify why.
 
-**Later, not open:** MOD-9 batch B (delay, reverb, quad_vca, chaos_lite, spectral). Promotions to the
-lab wait for lab MB2 (lab bundle M).
+**Next batch, now filed:** MOD-9 is split into exactly two unassigned bundles, I (two tasks) and J (three tasks), at the owner's request. Claim the first task only after MOD-7's remaining PRs #40 and #47 merge; no draft-ahead. Within a bundle, each predecessor merges before the next starts from main. The two bundles share only their index rows; preserve both on conflict. Read-site audits may retain structural parameters as setParam-only with reasons. Default renders stay bit-identical. No tooling/pin or lab edits. Promotions still wait for lab MB2 and owner-requested T2.
 
 ## Status snapshot (2026-11-27)
 
@@ -62,10 +63,13 @@ lab wait for lab MB2 (lab bundle M).
 | GUTTR | — | #38 | Merged `3cc1b4b`; owner listening is next |
 | MOD-T2c, TOOL-render, TOOL-shot | #18, #21, #22 | #41, #52, overlay #54 | Merged |
 | MOD-6, MOD-7 groove / cv_to_notes / host_keyboard, MOD-8 | #25, #28, #29, #30, #34 | #42, #43, #55, #44, #50 | Merged |
-| MOD-7-chord | #26 | #40 | blocked: LR-11 → lab #724 (bundle G) |
-| MOD-7-midi_to_cv | #31 | #47 (draft) | blocked: LR-12 → lab #724 (bundle G) |
-| PIN-next | #35 | — | Waits on lab #724 (bundle G) |
-| MOD-7-quantizer, midi_in, notes_to_cv | #27, #32, #33 | — | Ready (bundle H) |
-| CI-app-smoke, CI-windows-app | #23, #24 | — | Ready (bundle A) |
+| MOD-7-chord | #26 | #40 | New pin integrated; final-head CI and independent review (bundle G). LR-11 fix pinned. |
+| MOD-7-midi_to_cv | #31 | #47 | Pretesting passed; final integration follows #40, then exact-head T0/T1 and review. LR-13 active-render gap retained. |
+| PIN-next | #35 | #57 | Merged ed24cc8; lab #724 pinned at 3d3db7a. |
+| MOD-7-quantizer, midi_in, notes_to_cv | #27, #32, #33 | #58, #59, #60 | Merged (bundle H complete). |
+| CI-app-smoke, CI-windows-app | #23, #24 | #61, then new PR | #61 active; #24 follows its merge. |
+| MOD-9 batch B | #62–#66 | — | Filed in I/J; unassigned, gated on MOD-7 completion. |
 
 Signed: claude-architect, 2026-11-27
+
+Signed: codex-lead, 2026-11-27, 13:56 EST
