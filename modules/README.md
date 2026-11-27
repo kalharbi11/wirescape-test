@@ -17,8 +17,9 @@ One row per folder in `modules/`. Specs are in lab
 | `macro` | `essentials.macro` | new | §3.1 | MOD-5 (#8) | 1 | T1 |
 | `guttr` | `guttr` | new | owner package (lab `docs/context/future_modules/guttur`) | GUTTR (#38) | — | T1 |
 | `rhythm_lanes` | `sequencing.rhythm_lanes` | new | §4.4 (original design) | MOD-6 (#25) | 2 | T1 |
-| midi_to_cv, notes_to_cv | (existing) | override | §4.6 batch A, flags only | MOD-7 (#31, #33) | 2 | midi_to_cv blocked: LR-12 (PR #47); notes_to_cv planned |
+| `midi_to_cv` | `midi.to_cv` | override | §4.6 batch A, performance modulation | MOD-7 (#31) | 2 | blocked: LR-12 (PR #47); new-pin pretest green |
 | `chord` | `essentials.chord` | override | §4.6 enable/shift modulation | MOD-7 (#26) | 2 | T1 |
+| `notes_to_cv` | `essentials.notes_to_cv` | override | §4.6 batch A, setParam-only voices audit | MOD-7 (#33) | 2 | T1 |
 | `midi_in` | `midi.in` | override | §4.6 batch A, setParam-only filter audit | MOD-7 (#32) | 2 | T1 |
 | `quantizer` | `essentials.quantizer` | override | §4.6 batch A, all 16 flags | MOD-7 (#27) | 2 | T1 |
 | `cv_to_notes` | `essentials.cv_to_notes` | override | §4.6 batch A, legato modulation | MOD-7 (#29) | 2 | T1 |
