@@ -8,6 +8,8 @@ The descriptor, registration and event emission follow the existing
 `notes_to_cv` and `chord` module conventions. Fixed 16-lane state keeps all
 audio-thread processing allocation-free. The module is experimental.
 
-## MOD-7 override baseline
+## MOD-7 override
 
-Pinned lab `c083b26722b5b4d09e3285ab43f93e93be192f4f`. Copy the pinned folder; first add the descriptor and effective-stream regression, then add the legato modulation flag. No changes to per-sample channel-zero decision cadence, note identity, state or allocation are intended. No double-valued DSP state. Default-legato demo is a keyboard CV → note events → CV → synth round trip; it exercises the override without modulation for byte identity.
+Pinned lab `c083b26722b5b4d09e3285ab43f93e93be192f4f`. The pinned folder was copied before adding the descriptor and effective-stream regression (test-first commit `4cb705e`). The sole DSP change is adding `WS2_MODULATABLE` to the existing stepped, automatable legato descriptor. The per-sample channel-zero decision cadence (`b.param(0).value(0, i) >= .5f`), note identity, state and allocation remain unchanged. No double-valued DSP state. Default-legato demo is a keyboard CV → note events → CV → synth round trip; it exercises the override without modulation for byte identity.
+
+The regression first failed on the missing flag in hosted T0 at `4cb705e` (tests.cpp:319), after successful registration, checks and build. It exercises held notes with effective nonconstant modulation, nonzero sample offsets, release-before-attack ordering, and 1/16 lanes. Existing reset/choke, source ownership, state and allocation tests are retained. No lab changes or known limitations; see PR #55 for exact-head CI.

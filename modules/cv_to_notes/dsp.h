@@ -22,7 +22,7 @@ struct CvToNotes {
     static constexpr std::array outputs{
         ws::port("notes", "Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)};
     static constexpr std::array params{
-        ws::param("legato", "Legato", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1)};
+        ws::param("legato", "Legato", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE, WS2_LINEAR, 0, 4, 1)};
 
     struct Lane {
         bool active = false;

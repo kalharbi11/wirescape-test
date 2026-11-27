@@ -12,13 +12,15 @@ This is an **experimental** module: parameter naming and patch compatibility are
 | Input | `gate` | Poly GATE; rising/falling threshold 0.5; unconnected low |
 | Input | `velocity` | Poly unipolar CV 0–1; **unconnected defaults to 0.8**; latched at attack |
 | Output | `notes` | Poly NOTES event stream, one paired NOTE_ON/NOTE_OFF per active lane |
-| Parameter | `legato` | Off (0, default) / On (1), stepped; no pitch-change retrigger when Off |
+| Parameter | `legato` | Off (0, default) / On (1), stepped, modulatable and automatable; no pitch-change retrigger when Off |
 
 At a gate rise, the channel generates MIDI key `clamp(round(60 + 12*pitch), 0, 127)`
 and a velocity-latched NOTE_ON. On a gate fall it emits NOTE_OFF for the **original
 latched key**, even if pitch moved. With legato On, changing the quantized key
 while high releases the old key **before** attacking the new one at the same
-sample. Signals broadcast normally from a mono cable to multiple poly lanes.
+sample. Legato uses the effective channel-zero parameter value at each sample,
+including while a gate is already high; enabling it can immediately retrigger
+if the quantized pitch differs from the latched key. Signals broadcast normally from a mono cable to multiple poly lanes.
 The highest present poly input determines the number of examined lanes (up to
 the host's 16-channel limit); silent/unconnected gates never trigger.
 

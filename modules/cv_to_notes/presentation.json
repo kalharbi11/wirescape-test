@@ -52,7 +52,7 @@
       "taper": "linear",
       "step": 1,
       "decimals": 0,
-      "modulatable": false
+      "modulatable": true
     }
   ]
 }
