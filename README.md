@@ -10,8 +10,9 @@ Design: lab [`proposals/0024`](https://github.com/kalharbi11/wirescape-lab/blob/
 §2 (this repo) and §4 (module specs). Rules: [AGENTS.md](AGENTS.md). Module index:
 [modules/README.md](modules/README.md).
 
-**Status (2026-11-26):** rules and layout decided; the harness (`tools/wstest.py`, task MOD-0) is the
-first task. Until it merges, only docs change here.
+**Status (2026-11-27):** the harness (MOD-0) and T0/T1/T2 workflows are on `main`. Stage 1 modules
+are merged: `function_envelope` and `adsr` (overrides; T2 blocked on lab #665 and #664), and `random`,
+`macro` and `clock_divmult` (new; T1 green, T2 not yet requested). See [modules/README.md](modules/README.md).
 
 ## Layout
 ```
@@ -39,9 +40,9 @@ tools/fixtures/              harness self-tests
    T1 are green.
 5. **The owner requests T2** (an agent dispatches it when asked). After lab MB2, the lab's B4 lane promotes the folder (0024 §2.7).
 
-## Commands (planned in MOD-0; devices stay off)
+## Commands (devices stay off)
 ```sh
-python tools/wstest.py fetch                 # the lab at LAB_PIN into .lab/<sha>/
+python tools/wstest.py fetch                 # the lab at LAB_PIN into .lab/<sha>/ (add --git-deps behind a proxy)
 python tools/wstest.py build <name>…         # scratch lab copy + registration + build
 python tools/wstest.py t0 <name>             # check, build, tests, demo renders, CPU probe, identical
 python tools/wstest.py identical <name>      # overrides: byte-identical renders at default parameters
