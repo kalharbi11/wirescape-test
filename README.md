@@ -11,12 +11,13 @@ Design: lab [`proposals/0024`](https://github.com/kalharbi11/wirescape-lab/blob/
 [modules/README.md](modules/README.md).
 
 **Status (2026-11-27):** the harness (MOD-0) and T0/T1/T2 workflows are on `main`. Stage 1 modules
-are merged: `function_envelope` and `adsr` (overrides; T2 blocked on lab #665 and #664), and `random`,
+are merged: `function_envelope` and `adsr` (overrides; T2 waits for the next pin, which carries lab #683), and `random`,
 `macro` and `clock_divmult` (new; T1 green, T2 not yet requested). See [modules/README.md](modules/README.md).
+Stage 2 so far: `rhythm_lanes`, `lfo`, `groove`, `cv_to_notes`, `host_keyboard`, and the owner's `guttr` (T1).
 
 
-Active task pool and safe parallel work: [TASKS.md](TASKS.md). Bundles A–E are available without
-editing GUTTR; optional LFO and the next lab pin have explicit holds. No agents are assigned in docs.
+Active task pool: [TASKS.md](TASKS.md), a few short bundles (G, H, A) that any session can claim.
+No agents are assigned in docs.
 
 ## Layout
 ```
