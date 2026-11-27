@@ -22,6 +22,11 @@ def smoke(modules: list[str], root: Path = wstest.ROOT, run=subprocess.run,
         if os.name != "nt":
             raise RuntimeError("Windows app smoke requires a real Windows runner")
         console_flag = subprocess.CREATE_NEW_CONSOLE
+        for tool in ("npm", "npx"):
+            resolved = Path(wstest.tool_path(tool))
+            if resolved.suffix.lower() != ".cmd":
+                raise RuntimeError(f"{tool}: expected a Windows .cmd shim")
+            print(f"Windows app smoke: resolved {resolved.name}", flush=True)
     for name in modules:
         if not (root / "modules" / name / wstest.PANEL_FILE).is_file():
             print(f"Windows app smoke: {name} skipped (no panel.json)", flush=True)
