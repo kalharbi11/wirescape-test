@@ -19,7 +19,7 @@ struct Chord {
     static constexpr ws::Info info{"essentials.chord", "Chord", 1};
     static constexpr std::array inputs{ws::port("notes", "Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)};
     static constexpr std::array outputs{ws::port("notes", "Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)};
-    static constexpr uint32_t kStepped = WS2_STEPPED | WS2_AUTOMATABLE;
+    static constexpr uint32_t kStepped = WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE;
     static constexpr std::array params{
         ws::param("enable1", "Enable 1", 0, 1, 1, "", kStepped, WS2_LINEAR, 0, 4, 1),
         ws::param("shift1", "Shift 1", -24, 24, 4, "st", kStepped, WS2_LINEAR, 1, 4, 1),
