@@ -41,3 +41,11 @@ of an audible MIDI note or active behavior. Device-free C++ tests exercise
 synthetic UMP through MIDI In and MIDI to CV, without a shared tool change.
 No lab edits; active offline render evidence remains unavailable until lab
 support is approved. No gate is weakened.
+
+Blocking C4 failure: on the untouched descriptor, test-first T0 at decafcf
+failed before compilation: `param[2] range/initial invalid: steal_policy`.
+[Job log](https://github.com/kalharbi11/wirescape-test/actions/runs/45970820334/job/140410596032).
+The pinned wsmod validator rejects min == max; the mandated inert parameter
+has min=max=default=0. This is tracked in lab #719. No module-local workaround
+without altering the parameter contract or bypassing C4; neither is allowed.
+The new regression was not executed; #31 remains blocked pending lab support.
