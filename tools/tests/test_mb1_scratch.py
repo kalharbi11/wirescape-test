@@ -73,15 +73,15 @@ ids = sorted(m["id"] for m in d["modules"])
         folder = module(self.root / "modules/existing", "existing::Existing")
         override = wstest.Module("existing", folder, "override")
         self.assertEqual(wstest.bench_inventory(self.lab.dir, [override]),
-                         self.inventory.encode("utf-8"))
+                         (self.lab.dir / "bench/module_sets.json").read_bytes())
 
     def test_a106_append_preserves_existing_inventory_bytes(self):
         source = self.lab.dir / "bench/module_sets.json"
         original = self.inventory.replace('[]', '[ "old.id" ]')
         write(source, original)
         m = self.thing({"id": "test.thing"})
-        result = wstest.bench_inventory(self.lab.dir, [m]).decode("utf-8")
-        self.assertEqual(result, original.replace('"old.id"', '"old.id", "test.thing"'))
+        result = wstest.bench_inventory(self.lab.dir, [m])
+        self.assertEqual(result, source.read_bytes().replace(b'"old.id"', b'"old.id", "test.thing"'))
 
     def test_a106_generator_known_ids_must_match_descriptor(self):
         m = self.thing({"id": "test.thing"})
