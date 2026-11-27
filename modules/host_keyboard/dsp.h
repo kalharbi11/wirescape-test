@@ -12,7 +12,7 @@ struct HostKeyboard {
     static constexpr std::array params{
         ws::param("voices", "Voices", 1, 16, 8, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1),
         ws::param("mode", "Mode", 0, 3, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 1, 4, 1),
-        ws::param("octave", "Octave", -3, 3, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 2, 4, 1)};
+        ws::param("octave", "Octave", -3, 3, 0, "", WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE, WS2_LINEAR, 2, 4, 1)};
     wirescape::voice::NoteToCv core;
     uint32_t max_channels = 16;
     int voices = 0, mode = -1;

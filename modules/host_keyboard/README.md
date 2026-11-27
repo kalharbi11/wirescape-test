@@ -13,7 +13,11 @@ VCO, gate into ADSR, and the resulting voice into Output to sum the voices.
 | --- | --- | --- |
 | `voices` | 1..16 | 8 |
 | `mode` | 0 rotate, 1 reuse, 2 reset, 3 mono | 0 |
-| `octave` | -3..3 | 0 |
+| `octave` | -3..3 | 0 (stepped, modulatable) |
 
 Changing voices or mode releases existing notes. Panic releases all voices.
 Held notes are not serialized; saved parameters restore the keyboard setup.
+
+`octave` accepts modulation cables. Its effective stepped value offsets every
+voice's pitch CV at each sample, without transposing the emitted note events or
+changing allocation, gates or velocity. `voices` and `mode` remain setParam-only.
