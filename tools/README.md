@@ -9,6 +9,7 @@ Devices stay off: nothing opens audio, MIDI or the LAN.
 ```sh
 python tools/wstest.py fetch                  # the lab at LAB_PIN into .lab/<sha>/
 python tools/wstest.py t0 <name>...           # T0 for modules/<name> (or a folder path)
+python tools/wstest.py render <name>          # fast offline WAV preview, not T0
 python tools/wstest.py t0 --sanitize <name>   # T1's ASan+UBSan run: register, check, build, tests, demos
 python tools/wstest.py build <name>...        # register and build only
 python tools/wstest.py identical <name>...    # overrides: renders byte-identical to the pin
@@ -46,6 +47,23 @@ and `bench/module_sets.json` (only staged new IDs appended to `experimental`, al
 overrides add nothing). Older pins continue to use their original generator. The UI, S0 and
 `abi2_wire_describe_equality` gates are unchanged. The descriptor build is isolated from the full build,
 and no binary from another scratch or the host is used.
+
+## Fast offline listening preview
+
+```sh
+python tools/wstest.py render macro
+python tools/wstest.py render macro --rate 44100 --block 48
+```
+
+`render <name> [--demo <file>] [--rate R] [--block B]` registers one module in the usual
+strictly verified scratch tree, builds only `wirescape_render` (plus the MB1 descriptor prerequisite
+when required), and renders every demo or the named JSON file from its `demos/` folder.
+The rate/block default to each demo's settings. Each WAV is at
+`build/wstest-out/render/<name>/<demo-stem>/audio.wav`; the command prints peak (linear FS)
+and whether every sample is finite. A failed renderer or non-finite audio returns nonzero.
+This is not a test tier: no wsmod check, module CTest, CPU probe, identical or demo evidence
+window/peak-limit assertions. Run T0 for those gates. Devices remain off; WAVs are ignored and
+the Linux x64 harness-wide CI job smoke-runs Macro.
 
 ## T2 verdict
 T2 fails on a full-build failure, any failing lab CTest, a demo-matrix row that is not finite, over its
