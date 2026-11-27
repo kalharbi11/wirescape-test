@@ -106,7 +106,8 @@ class RegistrationTests(FakeLab):
         result = subprocess.run(["ctest", "--test-dir", str(build), "-C", "Release",
                                  "-R", "^(" + "|".join(selected) + ")$", "--no-tests=error"],
                                 check=True, capture_output=True, text=True)
-        self.assertIn("100% tests passed, 0 tests failed out of 2", result.stdout)
+        self.assertRegex(result.stdout, r"Test\s+#\d+: abi2_groove_tests\s+\.+\s+Passed")
+        self.assertRegex(result.stdout, r"Test\s+#\d+: groove_runtime_tests\s+\.+\s+Passed")
         self.assertIn(regression, wstest.module_tests(override, ["groove_runtime_tests"]))
 
     def test_single_registration_line_names_the_class(self):
