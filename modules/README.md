@@ -10,18 +10,18 @@ One row per folder in `modules/`. Specs are in lab
 
 | Folder | ID | Kind | Spec | Task | Stage | Status |
 |---|---|---|---|---|---|---|
-| `function_envelope` | `essentials.function_envelope` | override | §4.1 Trigger mode, `hold`, `delay` | MOD-1 (#5) | 1 | T1; T2 blocked: [lab #665](https://github.com/kalharbi11/wirescape-lab/issues/665) |
-| `adsr` | `essentials.adsr` | override | §4.1 `delay` | MOD-2 (#6) | 1 | T1; T2 blocked: [lab #664](https://github.com/kalharbi11/wirescape-lab/issues/664) |
+| `function_envelope` | `essentials.function_envelope` | override | §4.1 Trigger mode, `hold`, `delay` | MOD-1 (#5) | 1 | T1; T2 waits for the next pin (LR-10, fixed in lab #683) |
+| `adsr` | `essentials.adsr` | override | §4.1 `delay` | MOD-2 (#6) | 1 | T1; T2 waits for the next pin (LR-9, fixed in lab #683) |
 | `random` | `essentials.random` | new | §4.2 (starts from lab `sdk/examples/random_source`) | MOD-3 (#7), MOD-3a (#13) | 1 | T1 |
 | `clock_divmult` | `essentials.clock_divmult` | new | §4.3 | MOD-4 (#14) | 1 | T1; SDK-1 (`beat_clock.h`), [LR-8](../LAB_REQUESTS.md) |
 | `macro` | `essentials.macro` | new | §3.1 | MOD-5 (#8) | 1 | T1 |
-| `guttr` | `guttr` | new | owner package (lab `docs/context/future_modules/guttur`) | — | — | draft |
+| `guttr` | `guttr` | new | owner package (lab `docs/context/future_modules/guttur`) | GUTTR (#38) | — | T1 |
 | `rhythm_lanes` | `sequencing.rhythm_lanes` | new | §4.4 (original design) | MOD-6 (#25) | 2 | T1 |
-| chord, midi_in, midi_to_cv, notes_to_cv, quantizer | (existing) | override | §4.6 batch A, flags only | MOD-7 | 2 | planned |
-| `cv_to_notes` | `essentials.cv_to_notes` | override | §4.6 batch A, legato modulation | MOD-7 (#29) | 2 | draft |
-| `groove` | `sequencing.groove` | override | §4.6 batch A, ten flags | MOD-7-groove (#28) | 2 | draft |
-| `host_keyboard` | `host.keyboard` | override | §4.6 octave modulation | MOD-7 (#30) | 2 | draft |
-| `lfo` | `essentials.lfo` | override | §4.5 shapes, division, clock and reset | MOD-8 (#34) | 2 | draft |
+| chord, midi_in, midi_to_cv, notes_to_cv, quantizer | (existing) | override | §4.6 batch A, flags only | MOD-7 (#26, #27, #31–#33) | 2 | chord blocked: LR-11 (PR #40); midi_to_cv blocked: LR-12 (PR #47); others planned |
+| `cv_to_notes` | `essentials.cv_to_notes` | override | §4.6 batch A, legato modulation | MOD-7 (#29) | 2 | T1 |
+| `groove` | `sequencing.groove` | override | §4.6 batch A, ten flags | MOD-7-groove (#28) | 2 | T1 |
+| `host_keyboard` | `host.keyboard` | override | §4.6 octave modulation | MOD-7 (#30) | 2 | T1 |
+| `lfo` | `essentials.lfo` | override | §4.5 shapes, division, clock and reset | MOD-8 (#34) | 2 | T1 |
 | delay, reverb, quad_vca, chaos_lite, spectral | (existing) | override | §4.6 batch B | MOD-9 | 3 | planned |
 
 The harness (MOD-0, merged) is `tools/**`, not a module. Run `python tools/wstest.py t0 <folder>`
