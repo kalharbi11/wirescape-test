@@ -41,7 +41,7 @@ One task issue, one branch and one PR. A bundle is a sequence of tasks, never a 
    Close after merge. Hand back the claim when stopping. No task is assigned by this document.
 6. If a module needs a lab change, add or reuse one row in `LAB_REQUESTS.md` and stop that dependency
    (nothing is filed in the lab unless the owner asks); only a folder-local documented workaround is
-   allowed. Never weaken gates.
+   allowed, except for the Architect-approved app-only Studio overlay under `tools/studio/` (PR #54). Never weaken gates.
 
 ## Bundles
 

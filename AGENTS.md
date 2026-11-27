@@ -24,15 +24,16 @@ keep both rows on conflict. Separate sessions use separate checkouts/build trees
 ## Keep always
 1. **Only module folders, the harness and docs live here.** Paths: `modules/**`, `tools/**`,
    `.github/workflows/**`, `LAB_PIN` and the top-level docs.
-2. **Never edit the lab from here.** The only change made to a lab tree is the harness's mechanical
-   registration in its scratch copy.
+2. **Never edit the lab from here.** The only changes made to lab trees are the harness's mechanical
+   registration in its scratch copy and the Architect-approved workshop Studio overlay (`tools/studio/`,
+   PR #54), when present, in the separate app tree only. The overlay never reaches T0/T1/T2 or the pinned lab checkout.
    - A module that needs anything else gets **one row in [`LAB_REQUESTS.md`](LAB_REQUESTS.md)** (the living
      ledger of lab-facing gaps). Anything else means the engine, host, SDK, Studio, a lab test or a lab tool.
    - The row (ID `LR-n`) holds the module and PR that found it, what the lab lacks, the smallest lab change,
      and any workaround here. Check the ledger first and reuse an existing row.
    - **Nothing is filed in `kalharbi11/wirescape-lab` unless the owner asks** (owner, 2026-11-27). When the
      owner asks, file the issue and set the row to `sent to lab #N`.
-   - A workaround may only be code inside the module's own folder, listed in `DESIGN.md` "Limitations",
+   - Except for the workshop-only Studio overlay described above, a workaround may only be code inside the module's own folder, listed in `DESIGN.md` "Limitations",
      which links to its `LR-n` rows.
    - A module that needs a lab behaviour change is still blocked (`blocked: LR-n` in `modules/README.md`).
 3. **Realtime rules in module code:** no allocation, locks, I/O, exceptions, logging or JSON in
@@ -110,7 +111,7 @@ chat shell does not block this route when the connected tools can read and write
 **Done:** …
 **Next:** ordered steps any agent can follow
 **Tests:** command or run link → result
-**Limitations:** lab issues filed, workarounds in DESIGN.md
+**Limitations:** LAB_REQUESTS.md rows, owner-requested lab issues if any, workarounds in DESIGN.md
 Signed: <name>, <YYYY-MM-DD>
 ```
 Dates are New York time.

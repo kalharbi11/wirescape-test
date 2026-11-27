@@ -68,7 +68,8 @@ Local prototyping in the real app or a browser (`wstest app`, `wstest ui`, `pane
   module's `id`, plus the `SPDX-License-Identifier` key.
 - **Registration** inserts that object into the scratch sidecar (appended for a new module, replacing
   the same `id` for an override) and runs the pin's `tools/gen_ui_catalogue.py`, unmodified. Those two
-  files and the registration lines are the only allowed scratch diff.
+  files and the registration lines are the only allowed test-tier scratch diff. The workshop Studio overlay
+  (PR #54), when present, is restricted to the separate app tree.
 - **`ui_catalogue_sync` and `ui_patch_conformance` gate T2.**
 - **`abi2_sidecar_snapshot_tests` stays deferred** until the module's promotion PR, where the S0 byte
   change gets its I7 review. The gating `s0_catalogue_others` check stands in for it: the scratch
