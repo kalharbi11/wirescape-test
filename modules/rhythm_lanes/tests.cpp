@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // MOD-6 acceptance tests, written before implementation.
 #include "dsp.h"
-#include "../../tests/native/abi2/dsp_fixture.h"
+#include "test_fixture.h"
+#include <memory>
 #include "../../tests/native/abi2/allocation_watch.h"
 #include <array>
 #include <cmath>
@@ -48,10 +49,11 @@ static void descriptor() {
     for(unsigned p=32;p<34;++p) VERIFY((d->params[p].flags&WS2_STEPPED) && !(d->params[p].flags&WS2_MODULATABLE));
 }
 struct Rig {
-    DspFixture f;
+    std::unique_ptr<DspFixture> storage;
+    DspFixture &f;
     ws2_transport t{sizeof(t),WS2_PLAYING,1440,0,0,4,4,0,0};
     uint64_t frame=0;
-    explicit Rig(unsigned channels=1):f(Mod::descriptor(),48000,channels) {
+    explicit Rig(unsigned channels=1):storage(std::make_unique<DspFixture>(Mod::descriptor(),48000,channels)),f(*storage) {
         f.ins[0].flags=0; f.ins[1].flags=WS2_CONNECTED;
         f.process.transport=&t;
         for(unsigned l=0;l<4;++l) f.parameter[l*8][0][0]=7;
@@ -159,4 +161,22 @@ static void state_round_trip() {
     snapshot.pop_back();
     VERIFY(load(b.f,snapshot)==WS2_INVALID && save(b.f)==before);
 }
-int main(){euclidean();descriptor();probability_and_reset();latching();shapes_and_phase();realtime();state_round_trip();}
+static void clock_timing() {
+    Rig r;
+    r.f.ins[0].flags=WS2_CONNECTED;
+    r.f.parameter[32][0][0]=2;
+    r.f.parameter[0][0][0]=10; // half-beat cycle, one per clock edge
+    std::fill_n(r.f.input[0][0],256,0.f);
+    std::fill_n(r.f.input[1][0],256,0.f);
+    r.f.input[0][0][0]=r.f.input[0][0][100]=r.f.input[0][0][200]=1;
+    r.f.input[1][0][0]=1;
+    r.f.run(256);
+    VERIFY(r.f.output[0][0][0]==1 && r.f.output[0][0][99]==1);
+    VERIFY(r.f.output[0][0][100]==1 && r.f.output[0][0][151]==0);
+    VERIFY(r.f.output[0][0][200]==1 && r.f.output[0][0][251]==0);
+}
+static void all_divisions() {
+    const double expected[]={16,8,4,3,2,1.5,4./3,1,.75,2./3,.5,.375,1./3,.25,.1875,1./6,.125,1./12};
+    for(unsigned i=0;i<18;++i) VERIFY(wsbeat::division_beats(float(i))==expected[i]);
+}
+int main(){clock_timing();all_divisions();euclidean();descriptor();probability_and_reset();latching();shapes_and_phase();realtime();state_round_trip();}
