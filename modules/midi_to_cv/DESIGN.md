@@ -13,3 +13,31 @@ zero is converted to CV; other groups remain available on the raw MIDI port.
 State is a little-endian version marker; parameter/configuration state belongs
 to the patch document, while held activations and controller acquisition history
 are deliberately not resurrected on restore.
+
+## MOD-7 batch A (#31)
+
+Base: `c083b26722b5b4d09e3285ab43f93e93be192f4f` (LAB_PIN). Started from a byte copy of the seven
+pinned module files. Only descriptor flags change; existing STEPPED and
+AUTOMATABLE bits remain. No IDs, legacy indices, defaults, state format or
+DSP processing changes. Both process paths sample sustain at frame zero;
+changing from hold to ignore clears pedal-held notes before the event split.
+Both paths read apply-bend and bend range per sample in the pitch expression;
+raw bend is independent. Allocation and filter settings (voice_count,
+allocation_mode, mono_priority, legato, channel_filter) can release notes,
+resize or rebuild the allocator and remain setParam-only. steal_policy has
+range 0..0 and no read site; it also remains setParam-only. No new double state.
+
+The new device-free engine graph test connects CV to all three performance
+controls and checks exact flags, rejection of the six excluded cables, 1 and
+16 voices, event and idle paths, per-sample pitch, raw bend, and block-boundary
+pedal release. Existing state/allocator tests remain unchanged.
+
+## Limitations
+
+[Lab #719](https://github.com/kalharbi11/wirescape-lab/issues/719): the pinned
+renderer script cannot inject raw UMP (only noteOn, noteOff, gate, setParam).
+The idle demo verifies silence and unmodulated identity only; it is not evidence
+of an audible MIDI note or active behavior. Device-free C++ tests exercise
+synthetic UMP through MIDI In and MIDI to CV, without a shared tool change.
+No lab edits; active offline render evidence remains unavailable until lab
+support is approved. No gate is weakened.

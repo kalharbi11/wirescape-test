@@ -26,3 +26,16 @@ is post-J9 and is not implemented.
 Only UMP group0 is converted; other groups are preserved by MIDI In and counted as
 ignored by this converter. State restores parameters through the host and resets
 held notes; it never revives a stale sounding activation. No devices are opened.
+
+## Batch A performance modulation
+
+The stepped `sustain` (0 ignore / 1 hold, default 1),
+`pitch_bend_range_semitones` (0–48, default 2) and `apply_bend`
+(0 off / 1 on, default 1) accept modulation cables. Sustain is evaluated at
+block start; disabling it releases pedal-held notes at the block boundary.
+Bend range and apply-bend are evaluated per sample, and neither changes the
+raw bend output. The other six controls remain setParam-only.
+
+`last_note` is mono raw held pitch; `trig` is a poly 1 ms attack pulse.
+The device-free C++ tests inject UMP; the offline demo checks only no-ingress
+silence and identity because the pinned renderer cannot inject MIDI UMP.

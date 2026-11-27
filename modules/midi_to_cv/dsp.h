@@ -23,9 +23,9 @@ struct MidiToCv {
         ws::param("steal_policy", "Steal (oldest)", 0, 0, 0, "", stepped, WS2_LINEAR, 2, 4, 1),
         ws::param("mono_priority", "Priority (last/low/high)", 0, 2, 0, "", stepped, WS2_LINEAR, 3, 4, 1),
         ws::param("legato", "Legato", 0, 1, 0, "", stepped, WS2_LINEAR, 4, 4, 1),
-        ws::param("sustain", "Sustain (ignore/hold)", 0, 1, 1, "", stepped, WS2_LINEAR, 6, 4, 1),
-        ws::param("pitch_bend_range_semitones", "Bend range", 0, 48, 2, "st", stepped, WS2_LINEAR, 7, 4, 1),
-        ws::param("apply_bend", "Apply bend to pitch", 0, 1, 1, "", stepped, WS2_LINEAR, 8, 4, 1),
+        ws::param("sustain", "Sustain (ignore/hold)", 0, 1, 1, "", stepped | WS2_MODULATABLE, WS2_LINEAR, 6, 4, 1),
+        ws::param("pitch_bend_range_semitones", "Bend range", 0, 48, 2, "st", stepped | WS2_MODULATABLE, WS2_LINEAR, 7, 4, 1),
+        ws::param("apply_bend", "Apply bend to pitch", 0, 1, 1, "", stepped | WS2_MODULATABLE, WS2_LINEAR, 8, 4, 1),
         ws::param("channel_filter", "Channel (0 = Omni)", 0, 16, 0, "", stepped, WS2_LINEAR, 9, 4, 1)};
     voice::NoteToCv core;
     struct Expression { bool used = false; uint32_t source = 0, channel = 0; float bend = 0, aftertouch = 0, mod = 0; bool pedal = false; };
