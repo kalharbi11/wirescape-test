@@ -43,3 +43,25 @@ to loop 1). All observation buffers are ordinary channel-0 signals.
 Sidecar and WASM install uncabled taps and consume one render-owned last-frame
 snapshot. JSON creation stays on the non-render reader. See ENGINE_PROTOCOL §7
 and #497 for the additive maps and current-generation stopped Apply gate.
+
+## MOD-7 override
+
+Base: lab commit `c083b26722b5b4d09e3285ab43f93e93be192f4f`. All six original folder files
+were copied before changing the descriptor. The only DSP source changes
+are the ten additions of `WS2_MODULATABLE`, preserving automation, stepping,
+IDs, defaults and the per-sample `edge(b,p,i)` read on channel zero. No state
+layout, event semantics, timing or allocation change. Existing double
+state: phase, internal/external samples-per-step and per-track gate age
+and cutoff retain the pin's precision for fractional timing.
+
+### Limitations
+
+Workshop harness [#39](https://github.com/kalharbi11/wirescape-test/issues/39):
+the pin builds Groove directly from engine/CMakeLists.txt; the override's
+CMakeLists.txt is not registered by wstest. Its standalone regression target
+is `abi2_groove_tests`. Run the standalone CMake target inside an isolated
+scratch lab copy (cmake -S modules/groove -B build/groove-mod7, build, then
+ctest) as supplemental evidence; T0/T1 must also actually execute the new
+target before merge. Existing host Groove tests alone are insufficient.
+No lab change or tool gate waiver is proposed. No verified build or render
+results yet.

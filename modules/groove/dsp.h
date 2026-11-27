@@ -40,16 +40,16 @@ struct Sequencer {
         ws::port("t2_loop_hi", "T2 Loop High", WS2_CV_BI)};
     // All controls are rising-edge requests, including the published S0 run ID.
     static constexpr std::array params{
-        ws::param("run", "Start", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1),
-        ws::param("stop", "Stop", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 1, 4, 1),
-        ws::param("reset", "Reset", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 2, 4, 1),
-        ws::param("mute", "Mute", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 3, 4, 1),
-        ws::param("t1_run", "T1 Start", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 4, 4, 1),
-        ws::param("t1_stop", "T1 Stop", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 5, 4, 1),
-        ws::param("t1_mute", "T1 Mute", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 6, 4, 1),
-        ws::param("t2_run", "T2 Start", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 7, 4, 1),
-        ws::param("t2_stop", "T2 Stop", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 8, 4, 1),
-        ws::param("t2_mute", "T2 Mute", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 9, 4, 1)};
+        ws::param("run", "Start", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE, WS2_LINEAR, 0, 4, 1),
+        ws::param("stop", "Stop", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE, WS2_LINEAR, 1, 4, 1),
+        ws::param("reset", "Reset", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE, WS2_LINEAR, 2, 4, 1),
+        ws::param("mute", "Mute", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE, WS2_LINEAR, 3, 4, 1),
+        ws::param("t1_run", "T1 Start", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE, WS2_LINEAR, 4, 4, 1),
+        ws::param("t1_stop", "T1 Stop", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE, WS2_LINEAR, 5, 4, 1),
+        ws::param("t1_mute", "T1 Mute", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE, WS2_LINEAR, 6, 4, 1),
+        ws::param("t2_run", "T2 Start", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE, WS2_LINEAR, 7, 4, 1),
+        ws::param("t2_stop", "T2 Stop", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE, WS2_LINEAR, 8, 4, 1),
+        ws::param("t2_mute", "T2 Mute", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE, WS2_LINEAR, 9, 4, 1)};
     static constexpr uint32_t kTracks = 2, kSteps = 64, kClock = 512, kParams = 10;
     struct NoteState {
         bool on = false;

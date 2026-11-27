@@ -84,3 +84,14 @@ module-state version 2 saves loop/RNG counters and version-1 state defaults them
 to loop 1 and the deterministic seed. The patch format remains JSON, and a
 v1-authored patch does not gain v2-only fields on load.
 Live per-step DSP editing remains deferred to S2.
+
+## MOD-7 — effective modulation (0024 §4.6)
+
+All ten existing controls are now `STEPPED | AUTOMATABLE | MODULATABLE`.
+Their IDs, slot numbers, names, ranges (0–1), default (0) and step (1) are unchanged.
+Cable-derived effective values are read at each sample on channel 0; the
+first sample establishes the baseline, and only a transition from <= 0.5
+to > 0.5 issues a command. Held high values do not repeat commands. Global
+and track start/stop/mute and reset retain the precedence and quantization
+above. No parameter or port has been added. The offline gate demo uses
+ordinary setParam so it can also be rendered by the pristine pin.
