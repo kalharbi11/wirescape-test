@@ -560,8 +560,72 @@ static void e7c_keyboard_differing_controls() {
     }
 }
 
+
+struct OctaveCv {
+    static constexpr ws::Info info{"test.keyboard_octave_cv", "Octave CV", 1};
+    static constexpr std::array<ws2_port, 0> inputs{};
+    static constexpr std::array outputs{ws::port("cv", "CV", WS2_CV_BI)};
+    static constexpr std::array<ws2_param, 0> params{};
+    void prepare(const ws::Setup&) {}
+    void reset() {}
+    void process(ws::Block& b) {
+        b.out(0).set_channels(1);
+        b.out(0).mark_constant(false);
+        for (uint32_t i = 0; i < b.frames(); ++i)
+            b.out(0).ch(0)[i] = i < 32 ? 0.f : i < 64 ? 1.f : i < 96 ? -1.f : 0.f;
+    }
+};
+static void octave_modulation() {
+    const auto* d = ws::Module<ws2ports::HostKeyboard>::descriptor();
+    check(d->param_count == 3, "keyboard parameter count");
+    constexpr uint32_t structural = WS2_STEPPED | WS2_AUTOMATABLE;
+    check(d->params[0].flags == structural && d->params[1].flags == structural,
+          "voices and mode remain setParam-only");
+    check(d->params[2].flags == (structural | WS2_MODULATABLE), "octave exact flags");
+    for (uint32_t voices : {1u, 16u}) {
+        engine2::Config cfg;
+        cfg.max_block = 128;
+        engine2::Engine engine(cfg);
+        const auto producer = uint32_t(engine.register_producer());
+        check(engine.add_node(1, ws::Module<OctaveCv>::descriptor()) &&
+              engine.add_node(2, d) && engine.set_parameter(2, 0, float(voices)),
+              "octave graph nodes");
+        check(!engine.modulate(1, 0, 2, 0, 1.f) && !engine.modulate(1, 0, 2, 1, 1.f),
+              "allocator controls reject modulation cables");
+        check(engine.modulate(1, 0, 2, 2, 1.f) && engine.output(2, 0, 0) && engine.prepare(),
+              "octave cable accepted");
+        for (uint32_t c = 0; c < voices; ++c)
+            check(engine.enqueue(producer, 2, WS2_DIRECT_PORT,
+                  note({WS2_NOTE_ON, 60, int(c + 1)}), 0) == WS2_OK, "octave held note");
+        float samples[128]{};
+        float* rows[]{samples};
+        auto render = [&] {
+            allocation_watch::Scope watch;
+            check(engine.render(rows, 1, 128) == WS2_OK && watch.allocations() == 0,
+                  "octave allocation-free render");
+        };
+        render();
+        engine2::Outgoing e;
+        while (engine.pop_egress(e)) {}
+        render(); // all notes are already held; only the pitch CV should change.
+        check(engine.output_channels(2, 0) == voices && engine.output_channels(2, 1) == voices,
+              "octave modulation preserves voice count");
+        for (uint32_t c = 0; c < voices; ++c)
+            for (uint32_t i = 0; i < 128; ++i) {
+                const float expected = i < 32 ? 0.f : i < 64 ? 3.f : i < 96 ? -3.f : 0.f;
+                check(engine.output_sample(2, 0, c, i) == expected, "octave effective pitch at sample");
+                check(engine.output_sample(2, 1, c, i) == 1.f &&
+                      engine.output_sample(2, 2, c, i) == 1.f, "held gate and velocity unchanged");
+            }
+        while (engine.pop_egress(e))
+            check(e.node != 2 || e.port != 3, "octave modulation does not emit note events");
+        check(engine.meter().faults == 0, "octave graph no faults");
+    }
+}
+
 int main() {
     try {
+        octave_modulation();
         e7c_keyboard_roundtrip();
         e7c_keyboard_differing_controls();
         e7c_keyboard_anonymous_and_pending();
