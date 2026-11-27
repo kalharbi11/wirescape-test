@@ -17,6 +17,8 @@ python tools/wstest.py selftest               # T0 on tools/fixtures; outcomes i
 python tools/wstest.py t2 <name>              # T2 (normally the owner's dispatch of t2.yml)
 python tools/wstest.py app <name>...          # local only: engine + Studio + desktop build in build/app-<sha7>/; --launch starts it (owner only: may open audio)
 python tools/wstest.py ui <name>...           # local only: Studio dev server (fake engine); edit panel.json / presentation.json, reload
+python tools/wstest.py shot <name> [--dark]   # local only: render the module's card in the app tree's Studio to a PNG
+python tools/wstest.py studio-diff            # regenerate tools/studio/lab.patch (workshop Studio overlay, app tree only)
 python -m unittest discover -s tools/tests    # fast harness unit tests (fake lab, no build)
 ```
 If a proxy blocks `codeload.github.com`, add `--git-deps`: it runs the pinned lab's own
