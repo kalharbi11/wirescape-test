@@ -8,6 +8,7 @@ Devices stay off: nothing here opens audio, MIDI or a LAN socket.
   fetch                      the lab at LAB_PIN into .lab/<sha>/ (never another commit)
   build <module>...          scratch lab copy + registration + build of the T0 targets
   t0 <module>...             check, build, tests, demo renders, CPU probe, identical (overrides)
+  render <module>            fast offline WAV preview (renderer only, not T0)
   identical <module>...      overrides: byte-identical renders against a pristine build of the pin
   t2 <module>                full lab build and CTest, demo matrix, callgrind, Cortex-M7 (advisory)
   selftest                   T0 on tools/fixtures; outcomes must match tools/fixtures/expected.json
@@ -1006,6 +1007,59 @@ def cmd_t0(args) -> int:
     return report(session, wall, args.command)
 
 
+def cmd_render(args) -> int:
+    """Offline listening preview, deliberately not a T0 test."""
+    import struct
+    m = resolve_module(args.module)
+    if any(value is not None and value <= 0 for value in (args.rate, args.block)):
+        raise Refused("render rate and block must be positive")
+    cases = sorted((m.folder / "demos").glob("*.json"))
+    if args.demo:
+        requested = Path(args.demo)
+        if requested.parent == Path("."):
+            cases = [case for case in cases if case.name == requested.name]
+        else:
+            cases = [case for case in cases if case.resolve() == requested.resolve()]
+    if not cases:
+        raise Refused("no matching demos/*.json for " + m.name)
+    # Validate all cases before building, but do not apply T0's evidence windows
+    # (their frame indices depend on the original sample rate).
+    try:
+        demos = [(path, validate_case(path)) for path in cases]
+    except (StepFailed, OSError) as error:
+        raise Refused(str(error)) from error
+    session = Session(args, [m])
+    session.lab.fetch(git_deps=args.git_deps)
+    session.register()
+    failed = False
+    try:
+        log("building wirescape_render (offline preview only) ...")
+        ok, detail = cmake_build(session.lab, session.scratch, session.build_dir,
+                                 ["wirescape_render"], False, session.config)
+        if not ok:
+            raise Refused(detail)
+        render = binary(session.build_dir, "wirescape_render", session.config)
+        for path, case in demos:
+            out = ROOT / "build" / "wstest-out" / "render" / m.name / path.stem
+            wav = out / "audio.wav"
+            # Never report a stale WAV if the new render fails.
+            try:
+                wav.unlink(missing_ok=True)
+                render_case(render, case, out, rate=args.rate, block=args.block)
+                peak, finite = wav_peak(wav)
+                log(f"{path.name}: peak={peak:.6g} finite={str(finite).lower()} "
+                    f"WAV={wav.relative_to(ROOT).as_posix()}")
+                failed |= not finite
+            except (StepFailed, OSError, ValueError, struct.error) as error:
+                log(f"{path.name}: render failed: {getattr(error, 'detail', str(error))}")
+                failed = True
+    except StepFailed as error:
+        raise Refused(error.detail) from error
+    finally:
+        verify_scratch(session.scratch, session.tree)
+    return 1 if failed else 0
+
+
 def cmd_identical(args) -> int:
     start = time.monotonic()
     modules = [resolve_module(a) for a in args.modules]
@@ -1545,6 +1599,13 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--probe-seconds", type=float, default=5.0)
         p.add_argument("--probe-channels", type=int, action="append", choices=range(1, 17))
         p.set_defaults(func=cmd_t0)
+    p = sub.add_parser("render", help="fast offline WAV preview; not a test tier")
+    common(p, None)
+    p.add_argument("module")
+    p.add_argument("--demo", help="one demos/*.json filename or path (default: all)")
+    p.add_argument("--rate", type=int, help="override demo sample rate")
+    p.add_argument("--block", type=int, help="override demo block size")
+    p.set_defaults(func=cmd_render)
     p = sub.add_parser("identical")
     common(p)
     p.set_defaults(func=cmd_identical, sanitize=False)
