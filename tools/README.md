@@ -14,6 +14,8 @@ python tools/wstest.py build <name>...        # register and build only
 python tools/wstest.py identical <name>...    # overrides: renders byte-identical to the pin
 python tools/wstest.py selftest               # T0 on tools/fixtures; outcomes in fixtures/expected.json
 python tools/wstest.py t2 <name>              # T2 (normally the owner's dispatch of t2.yml)
+python tools/wstest.py app <name>...          # local only: engine + Studio + desktop build in build/app-<sha7>/; --launch starts it (owner only: may open audio)
+python tools/wstest.py ui <name>...           # local only: Studio dev server (fake engine); edit panel.json / presentation.json, reload
 python -m unittest discover -s tools/tests    # fast harness unit tests (fake lab, no build)
 ```
 If a proxy blocks `codeload.github.com`, add `--git-deps`: it runs the pinned lab's own
@@ -47,6 +49,21 @@ Callgrind and Cortex-M7 are advisory. **Lab #652 final ruling (0024 §9.1):**
 - **Blocks** are 16, 17, 48, 128 and 512 (§9.2). A row skips only when the demo itself refuses as the
   lab's `adsr-notes` case does at that rate and block (lab #663).
 
+## `app`, `ui` and `panel.json` (local conveniences, not test tiers)
+`modules/<name>/panel.json` is optional: one Studio `PanelOverride` object plus the SPDX key (keys in
+[PROTOTYPING.md](../PROTOTYPING.md); unknown keys and an `id` that does not match `dsp.h` are refused).
+Only `app` and `ui` use it: they prepare `build/app-<sha7>/` like T0's tree plus
+`apps/studio/public/panels/<id>.json` and the id in `panels/index.json`. T0, T1 and T2 never copy the file
+(not even into the module folder), so their scratch tree is unchanged.
+- `app`: builds `wirescape-engine` (own build dir `build/wstest-<sha7>/app/`), runs `npm ci` in `apps/studio`
+  and `apps/desktop` only when `node_modules` is missing or `package-lock.json` changed, runs
+  `npm run build` in `apps/desktop` (it builds Studio too) and prints the Electron command. Only `--launch`
+  starts the app; it may open audio devices, so agents and CI never pass it.
+- `ui`: no C++ build; runs `npm run dev -- --port N --strictPort` in the app tree and polls `panel.json` and
+  `presentation.json` every 0.5 s, re-applying them (and re-running the pin's `gen_ui_catalogue.py`).
+  `--no-serve` prepares the tree and exits.
+`node_modules`, `dist` and `build` inside the app tree survive a refresh.
+
 ## Where things live (all git-ignored)
 - `.lab/<sha>/`: the pinned lab, a shallow git checkout. Refused if it is at another commit or edited.
 - `build/scratch-<sha7>/`: recreated on every run from the pin, plus the module folders and, before lab
@@ -54,6 +71,7 @@ Callgrind and Cortex-M7 are advisory. **Lab #652 final ruling (0024 §9.1):**
   It is verified file by file after preparing and again at the end of the run.
 - `build/wstest-<sha7>/<variant>/`: the CMake build. Changed files get a fresh mtime only when their content
   changed, so repeated runs are incremental.
+- `build/app-<sha7>/`: the `app`/`ui` copy (see above); `build/wstest-<sha7>/app/` its engine build.
 - `build/pristine-<sha7>/`: the untouched pin, built once for `identical`.
 
 Signed: claude-builder1, 2026-11-26
