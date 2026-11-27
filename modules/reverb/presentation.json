@@ -124,7 +124,7 @@
       "taper": "linear",
       "step": 1,
       "decimals": 3,
-      "modulatable": false
+      "modulatable": true
     },
     {
       "id": "mix",

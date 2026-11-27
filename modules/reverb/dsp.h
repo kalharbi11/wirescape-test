@@ -48,7 +48,7 @@ struct Reverb {
         ws::param("predelay", "Pre-delay", 0, .25f, .02f, "s", kMod, WS2_LINEAR, PREDELAY),
         ws::param("width", "Width", 0, 1, 1, "", kMod, WS2_LINEAR, WIDTH),
         ws::param("motion", "Motion", 0, 1, .2f, "", kMod, WS2_LINEAR, MOTION),
-        ws::param("freeze", "Freeze", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, FREEZE, 4, 1),
+        ws::param("freeze", "Freeze", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE, WS2_LINEAR, FREEZE, 4, 1),
         ws::param("mix", "Mix", 0, 1, .3f, "", kMod, WS2_LINEAR, MIX)};
 
     static constexpr std::array<uint32_t, 8> base{{1499, 1741, 1999, 2281, 2617, 3011, 3469, 4789}};

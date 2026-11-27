@@ -37,3 +37,23 @@ The correction restores the original `kWetMakeup=5` to retain full-wet loudness.
 The test-only meter exposes raw mixed peak **before the new knee**, final pre-hard-clamp peak, soft-knee sample count and any hard-clamp hits. New full-scale 8 s correlated/antiphase tests require a nonzero soft-knee count, bounded pre-hard-clamp peak <2 and **zero** +/-2 hard-clamp hits; the default full-scale 440 Hz test must remain ≤1 FS with no knee use. No extra allocation, state, SDK, parameter, port or host-rate adapter change. All S7.1 rate/damping/freeze/RT assertions stay intact. The knee leaves ordinary levels linear, but the restored dry-limit gain curve changes some low-Mix outputs: exact-source hosted Golden must establish every bundled patch RMS and unlisted hash without assumptions.
 
 The previous correction's raw/soft-knee numerical diagnostics were from an unpinned standalone simulation, not a production run; no such unverified numerical values are used as acceptance evidence. The hosted [old-source Lab 44486830182](https://github.com/kalharbi11/wirescape-lab/actions/runs/44486830182) passed the meter assertions, while the [matched full-mode MO run 44517989583](https://github.com/kalharbi11/wirescape-lab/actions/runs/44517989583) and [old-source D5 publication](https://github.com/kalharbi11/wirescape-lab/pull/255#issuecomment-7008187061) remain pinned to `137a6abe` versus `f314b859`. This **new** source correction adds a folder regression that moves Mix across zero at 44.1, 48 and 96 kHz; it preserves the Mix=0 exact-dry assertion and requires near-zero output to approach dry within 0.0005 FS on both channels. The original full-scale/no-hard-clamp, loudness, damping, state and RT tests remain intact. **Fresh** hosted Lab/Golden with per-patch RMS, x64/ARM64 Ir, matched full-mode production MO and separately rendered/published D5 are required at the next exact source head. Prior success cannot certify changed Reverb bytes. Correction ledger is 2/2; any further ordinary source change requires SR6 disposition.
+
+
+## MOD-9 — Freeze stepped modulation audit
+
+Workshop override starts from a byte copy at lab commit `3d3db7a64090682a62f220d73baef49709048c87` (LAB_PIN). Original code, no additional external source. Only production change is adding `WS2_MODULATABLE` to the existing `WS2_STEPPED | WS2_AUTOMATABLE` flags on slot 6 (`freeze`).
+
+| Effective read site | Cadence and decision |
+|---|---|
+| `process`, native 48 kHz | Reads `b.param(FREEZE).value(0, i)` per host sample, threshold >= 0.5. Existing scalar `freeze_amount` slews toward 0/1 by 1/960 per tank tick. |
+| `process_core_sample`, non-48 kHz | Same effective channel-0 read per internal tank tick; adapter holds current host row sample over zero or more 48 kHz ticks. The existing phase accumulator and sample counter determine the cadence, independent of host block size. |
+
+Both paths derive input drive, motion, damping and feedback from `freeze_amount` without reallocating, changing topology, re-priming delay lengths, or clearing history. Freeze is therefore realtime-safe for stepped modulation, including release; no other parameter is changed. The existing parameter order, ranges, defaults, ports, state version and host-rate adapter remain untouched.
+
+All delay/predelay/diffuser storage is obtained through `Setup::alloc(..., WS2_LARGE)` in prepare. Process and reset use existing fixed arrays/scalars and preallocated history, no allocation, locks, I/O, exceptions or logging. Persistent double fields are `core_phase` (host-to-tank timing accumulator) and `delay[8]` (fractional tap glides; float would stall before integer targets). No new state. Version 1 state is a version word, with host-owned parameter restoration and reset of history on load.
+
+Tests: exact stepped and continuous flags, legacy IDs; effective nonconstant rows at 44.1, 48 and 96 kHz with an independent 48 kHz tick/drive oracle, including threshold and release. Registered ABI callback comparisons against single-host-sample constant rows, 1/16-channel host contexts (WS2_SUM supplies a mono row per input), difference from unfrozen audio, finite and bounded outputs, allocation watch and reset/state-v1 equivalence. Existing freeze retention, damping, gain staging, rate and block regression tests retained. Default-tail offline demo exercises the pinned default parameters.
+
+## Limitations
+
+[LR-7](../../LAB_REQUESTS.md): pinned offline evidence expects mirrored stereo buses. Default-tail demo observes one Reverb output mirrored to both buses; independent stereo behavior remains covered by the native tests. No new lab request or harness changes. Existing listening caveat and lab promotion gates remain; T2 only on owner request.
