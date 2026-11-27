@@ -1,10 +1,19 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Essentials LFO — experimental ABI 2
+# LFO — MOD-8 override
 
-Offline engine2 port only; stable essentials.lfo identity, GPL-3.0-only. The ABI1 app still uses its original module. DSP: dsp.h; registration: module.cpp. Tests are maintained together in native/tests2/module_tests.cpp (reference, matrix, reset, scalar/no-exception builds) and integration_tests.cpp (graph/voice proof), rather than duplicated per module.
+Module `essentials.lfo`, version 2. Existing outputs Control (bipolar), Phase (unipolar) remain polyphonic, same indices. Appended mono-first Clock (gate) and Reset (trigger) inputs. Clock takes priority in tempo sync; reset restarts phase on a rising edge.
 
-Sine control oscillator, rate/depth/offset retain ABI1 meanings; sync/beats are new parameters.
+| Index | ID | Range | Default | Modulation |
+|---|---|---|---|---|
+| 0 | rate | .01–20 Hz | 1 | per voice, audio rate |
+| 1 | depth | 0–1 | 1 | per voice, audio rate |
+| 2 | offset | -1–1 | 0 | per voice, audio rate |
+| 3 | sync | 0–1 | 0 | stepped, setParam |
+| 4 | beats | .125–16 | 1 | continuous |
+| 5 | shape | 0–6 | 0 | stepped, modulatable |
+| 6 | width | 0–1 | .5 | same flags as rate |
+| 7 | division | 0–18 | 0 | stepped, modulatable |
+| 8 | clock_ppq | 1–24 | 1 | stepped, setParam |
+| 9 | seed | 0–65535 | 0 | stepped, setParam |
 
-Outputs (both polyphonic signals, with stable indices): `control` (index 0, bipolar sine with depth and offset), and the **appended** `phase` (index 1, unipolar 0..1 ramp). `phase` is the same per-voice oscillator phase used for the sine sample, normalised by 2π **before** the free-run step. It is not scaled by depth or offset, so it advances even at depth 0. The existing output and all parameter IDs/indices are unchanged; patches saved without `phase` still load and render as before. Sync uses transport quarter-note position. When transport is missing, manual rate runs. Stopped sync holds phase; locate sets it directly. Double phase retains low-rate precision.
-
-See [spec](../../../docs/specs/ABI2_SPEC.md) and [review](../../../docs/reviews/M1_FOUNDATION_SLICE_REVIEW.md) for evidence and limitations. No hardware/plugin adapter claim.
+Shapes: sine, triangle, rising ramp, falling ramp, square (width = high duty fraction), random stepped, random smooth. Division 0 uses Beats; 1–18 are the C3 table, 4 bars through 1/32 triplet. Seed 0 uses the instance seed. See DESIGN.md for timing and defaults. Demo is deliberately compatible with the pristine LFO to witness identity; new features are covered by tests.cpp.

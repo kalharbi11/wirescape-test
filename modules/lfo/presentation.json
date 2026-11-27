@@ -1,0 +1,284 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "id": "essentials.lfo",
+  "name": "LFO",
+  "category": "Motion",
+  "ports": [
+    {
+      "id": "clock",
+      "name": "Clock",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "gate",
+      "poly": "first",
+      "stereo_pair": null
+    },
+    {
+      "id": "reset",
+      "name": "Reset",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "trigger",
+      "poly": "first",
+      "stereo_pair": null
+    },
+    {
+      "id": "control",
+      "name": "Control",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null
+    },
+    {
+      "id": "phase",
+      "name": "Phase",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_uni",
+      "poly": "poly",
+      "stereo_pair": null
+    }
+  ],
+  "parameters": [
+    {
+      "id": "rate",
+      "name": "Rate",
+      "minimum": 0.01,
+      "maximum": 20,
+      "default": 1,
+      "unit": "Hz",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "depth",
+      "name": "Depth",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "offset",
+      "name": "Offset",
+      "minimum": -1,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "sync",
+      "name": "Tempo sync",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 3,
+      "modulatable": false,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Off"
+        },
+        {
+          "value": 1,
+          "label": "On"
+        }
+      ]
+    },
+    {
+      "id": "beats",
+      "name": "Beats/cycle",
+      "minimum": 0.125,
+      "maximum": 16,
+      "default": 1,
+      "unit": "beats",
+      "taper": "log",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "shape",
+      "name": "Shape",
+      "minimum": 0,
+      "maximum": 6,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Sine"
+        },
+        {
+          "value": 1,
+          "label": "Triangle"
+        },
+        {
+          "value": 2,
+          "label": "Ramp up"
+        },
+        {
+          "value": 3,
+          "label": "Ramp down"
+        },
+        {
+          "value": 4,
+          "label": "Square"
+        },
+        {
+          "value": 5,
+          "label": "Random stepped"
+        },
+        {
+          "value": 6,
+          "label": "Random smooth"
+        }
+      ]
+    },
+    {
+      "id": "width",
+      "name": "Width",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "unit": "",
+      "taper": "linear",
+      "step": 0,
+      "decimals": 3,
+      "modulatable": true
+    },
+    {
+      "id": "division",
+      "name": "Division",
+      "minimum": 0,
+      "maximum": 18,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": true,
+      "choices": [
+        {
+          "value": 0,
+          "label": "Beats"
+        },
+        {
+          "value": 1,
+          "label": "4 bars"
+        },
+        {
+          "value": 2,
+          "label": "2 bars"
+        },
+        {
+          "value": 3,
+          "label": "1 bar"
+        },
+        {
+          "value": 4,
+          "label": "1/2."
+        },
+        {
+          "value": 5,
+          "label": "1/2"
+        },
+        {
+          "value": 6,
+          "label": "1/4."
+        },
+        {
+          "value": 7,
+          "label": "1/2T"
+        },
+        {
+          "value": 8,
+          "label": "1/4"
+        },
+        {
+          "value": 9,
+          "label": "1/8."
+        },
+        {
+          "value": 10,
+          "label": "1/4T"
+        },
+        {
+          "value": 11,
+          "label": "1/8"
+        },
+        {
+          "value": 12,
+          "label": "1/16."
+        },
+        {
+          "value": 13,
+          "label": "1/8T"
+        },
+        {
+          "value": 14,
+          "label": "1/16"
+        },
+        {
+          "value": 15,
+          "label": "1/32."
+        },
+        {
+          "value": 16,
+          "label": "1/16T"
+        },
+        {
+          "value": 17,
+          "label": "1/32"
+        },
+        {
+          "value": 18,
+          "label": "1/32T"
+        }
+      ]
+    },
+    {
+      "id": "clock_ppq",
+      "name": "Clock PPQ",
+      "minimum": 1,
+      "maximum": 24,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": false
+    },
+    {
+      "id": "seed",
+      "name": "Seed",
+      "minimum": 0,
+      "maximum": 65535,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "step": 1,
+      "decimals": 0,
+      "modulatable": false
+    }
+  ]
+}

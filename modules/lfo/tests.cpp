@@ -29,7 +29,7 @@ static void identity(unsigned channels){
  }}
 }
 static void shapes(){
- auto f=rig(); ws2_transport t{sizeof(t),0,120,0,.25,4,4,0,0};f->process.transport=&t;
+ auto f=rig(); ws2_transport t{sizeof(t),WS2_PLAYING,120,0,0,4,4,0,0};t.beat=.25;f->process.transport=&t;
  f->parameter[3][0][0]=1;
  const float expected[]={1,1,-.5f,.5f,1};
  for(unsigned s=0;s<7;++s){f->parameter[5][0][0]=float(s);f->run(1);
@@ -47,4 +47,11 @@ static void clock_reset(){
  {allocation_watch::Scope watch;r->run(256);r->reset();r->run(17);VERIFY(watch.allocations()==0);}
  VERIFY(r->output[1][0][10]==0);
 }
-int main(){descriptor();identity(1);identity(16);shapes();clock_reset();}
+static void random_reset(){
+ auto a=rig(),b=rig();a->parameter[5][0][0]=b->parameter[5][0][0]=6;
+ a->parameter[9][0][0]=b->parameter[9][0][0]=12;
+ a->parameter[0][0][0]=b->parameter[0][0][0]=20;
+ for(int n=0;n<20;++n){a->run(256);b->run(256);VERIFY(!std::memcmp(a->output[0][0],b->output[0][0],256*sizeof(float)));}
+ a->reset();b->reset();a->run(256);b->run(256);VERIFY(!std::memcmp(a->output[0][0],b->output[0][0],256*sizeof(float)));
+}
+int main(){descriptor();identity(1);identity(16);shapes();clock_reset();random_reset();}

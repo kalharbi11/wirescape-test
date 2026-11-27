@@ -1,12 +1,13 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-DSP is in dsp.h, wrapper registration in module.cpp. No Qt/OS/allocating containers or allocation in processing. Fixed16-channel state is prepared once. SDK owns validation; engine owns base smoothing/normalized modulation/taper. Double phase/IIR state is retained where documented for precision/reference matching. No fast tan approximation is used. Voice groups are four-wide; VCA uses SDK SIMD, while transcendental/IIR scalar math is retained pending measured equivalent SIMD implementations.
+# MOD-8 design
 
-## Behavior
+Pinned source: lab c083b26722b5b4d09e3285ab43f93e93be192f4f, GPL-3.0-only, original Wirescape LFO. Existing parameter and output indices and flags retained. Original sine calculation and free-running advance remain unchanged at defaults. Phase is sampled before advancing. No persisted DSP state existed in the pinned module; reset clears runtime oscillator/clock/random phase.
 
-Tempo sync defaults off: transport presence alone does not change free-running rate. Sync enabled without transport falls back to free running. With transport, beat position and Beats/cycle determine phase; stopped transport holds phase and a locate changes it. Beats/cycle is a continuous global D7-modulatable parameter; the stepped Sync switch is not CV-modulated. These transport controls extend the ABI1 free-running oscillator.
+C2/C3 uses the exact MOD-3 module-local beat_clock.h. Sync with an external clock follows its interpolated edges, holds after missing edges; sync without a clock follows transport (free-running at its BPM while stopped per C2, unlike the old stopped hold). Without either transport or clock manual rate remains the legacy fallback. Reset edge resets phase and beat origin; coincident clock/reset takes reset as origin. Clock and reset are mono-first for all voices. Shape and division are read per sample; division only affects tempo sync, width sets square duty. Triangle starts at zero, peaks at quarter cycle, dips at three quarters; ramps start at -1/+1. Smooth random uses cubic smoothstep between adjacent counter-keyed bipolar values; seed 0 uses host instance seed. Reset reproduces the sequence. Transport locates address a cycle directly; random sync cycle index wraps modulo 2^32. These waveform conventions, width semantics and seed mapping are implementation choices not fixed by §4.5.
 
-The appended `phase` signal output (index 1, `WS2_CV_UNI`) publishes `phase[c]/tau` at each sample, clamped to the largest float below 1 to avoid rounding a near-wrap phase to 1. Sync reads the transport-derived phase, including locate and stopped position; missing transport uses free-run. Both outputs set the host-selected voice count and remain varying. `control` (index 0) retains its original calculation and phase-advance order unchanged. The host-side telemetry mapping is a separate B-wire task (#359), not part of this module.
+Fixed arrays of 16 voices. Double phase and beat-clock accumulators preserve low-rate precision. No heap, locks, I/O, logging or exceptions in processing/reset. No lab modifications.
 
-## Provenance
-
-Source: `native/modules/lfo/module.cpp` and the ABI2 port at main `f23ea96`. License: GPL-3.0-only. Original Wirescape code, GPL-3.0-only, no upstream source. There is no ABI1 DESIGN.md; no external source or pinned upstream revision is invented here.
+## Limitations
+- SDK-1 beat-clock promotion pending; exact local copy.
+- Workshop issue #39: pin registers LFO directly in engine/CMakeLists.txt and does not add the module-local CMake target. Hosted T0/T1 must prove abi2_lfo_tests actually executes; no green legacy-only gate is sufficient. No shared tooling edits here.
+- Tests and identity evidence pending hosted CI; independent review required. No T2 without owner request.
