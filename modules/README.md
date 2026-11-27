@@ -27,7 +27,8 @@ One row per folder in `modules/`. Specs are in lab
 | `host_keyboard` | `host.keyboard` | override | §4.6 octave modulation | MOD-7 (#30) | 2 | T1 |
 | `lfo` | `essentials.lfo` | override | §4.5 shapes, division, clock and reset | MOD-8 (#34) | 2 | T1 |
 | `delay` | `fx.delay` | override | §4.6 division/mode modulation | MOD-9 (#62) | 3 | T1 |
-| reverb, quad_vca, chaos_lite, spectral | (existing) | override | §4.6 batch B | MOD-9 | 3 | planned |
+| `quad_vca` | `essentials.quad_vca` | override | §4.6 batch B, four mode flags | MOD-9 (#64) | 3 | T1 |
+| reverb, chaos_lite, spectral | (existing) | override | §4.6 batch B | MOD-9 | 3 | planned |
 
 The harness (MOD-0, merged) is `tools/**`, not a module. Run `python tools/wstest.py t0 <folder>`
 (see [tools/README.md](../tools/README.md)); its self-test fixtures live in `tools/fixtures/`.
