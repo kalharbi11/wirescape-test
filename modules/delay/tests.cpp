@@ -951,13 +951,21 @@ static void settled_reference_diagnosis() {
 }
 
 
- // Effective parameter rows may change within a block. Test the original
- // sample cadence, rather than merely changing the stored value per block.
+// Effective parameter rows may change within a block. Test the original
+// sample cadence, rather than merely changing the stored value per block.
 static void batch_b_effective_rows() {
     const auto *desc = ws::Module<Delay>::descriptor();
     const uint32_t expected = WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE;
     REQUIRE(desc->params[kDivision].flags == expected);
     REQUIRE(desc->params[kMode].flags == expected);
+    REQUIRE(desc->param_count == 6);
+    const char *ids[] = {"time", "division", "feedback", "tone", "mode", "mix"};
+    for (unsigned p = 0; p < 6; ++p) {
+        REQUIRE(std::strcmp(desc->params[p].id, ids[p]) == 0);
+        REQUIRE(desc->params[p].legacy_index == p);
+        if (p != kDivision && p != kMode)
+            REQUIRE(desc->params[p].flags == (WS2_AUTOMATABLE | WS2_MODULATABLE));
+    }
     for (unsigned channels : {1u, 16u}) {
         for (bool clocked : {false, true}) {
             Rig r;
@@ -1004,6 +1012,41 @@ static void batch_b_effective_rows() {
             { allocation_watch::Scope watch; dsp.reset(); REQUIRE(watch.allocations() == 0); }
             REQUIRE(dsp.mode_blend == 0.f && dsp.division_seen == -1);
         }
+    }
+    // Also exercise the registered ABI callback and observe the audible
+    // consequence, not just the direct DSP's internal transition state.
+    // A free-running 1 ms tap at 48 kHz reads ~48 frames behind the write.
+    // Switching mode at sample 80 starts reducing the right-line write
+    // immediately; the wet right output changes only when that write arrives.
+    for (unsigned channels : {1u, 16u}) {
+        Rig r;
+        wet_only(r, .001f, 0.f);
+        r.in[0].connected = true;
+        r.in[0].ch.assign(channels, Wave(256, .01f));
+        float mode[256]{}, division[256]{};
+        for (unsigned i = 0; i < 256; ++i) {
+            mode[i] = i < 80 ? 0.f : 1.f;
+            division[i] = i < 80 ? 5.f : 6.f;
+        }
+        const float *mode_row = mode, *division_row = division;
+        const auto out = r.run(256, 256, {}, true, [&](ws2_process &ctx) {
+            ws2_signal effective[6];
+            std::copy_n(ctx.params, 6, effective);
+            effective[kMode] = {sizeof(ws2_signal), &mode_row, 1, 0};
+            effective[kDivision] = {sizeof(ws2_signal), &division_row, 1, 0};
+            const auto *saved = ctx.params;
+            ctx.params = effective;
+            const int result = r.d->process(r.instance, &ctx);
+            ctx.params = saved;
+            return result;
+        });
+        const float input = .01f * channels;
+        REQUIRE(finite_within(out.l, 1.6f) && finite_within(out.r, 1.6f));
+        REQUIRE(std::fabs(out.l[127] - input) < 1e-6f);
+        REQUIRE(std::fabs(out.r[127] - input) < 1e-6f);
+        REQUIRE(std::fabs(out.r[128] - input * (1.f - 1.f / 480.f)) < 1e-6f);
+        REQUIRE(std::fabs(out.l[160] - input) < 1e-6f);
+        REQUIRE(std::fabs(out.r[160] - input * (1.f - 33.f / 480.f)) < 1e-6f);
     }
     std::puts("PASS delay batch B flags and sample-addressed mode/division");
 }
