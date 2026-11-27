@@ -9,16 +9,20 @@ the owner's `guttur-worklet.js`; no third-party code). Reference snapshot: lab c
 This folder restructures `src/engine.cpp`,
 `src/tables.cpp`, `src/tube.cpp`, `src/room.cpp`, `src/internal.h` and `src/reference_constants.h` into
 header-only files under `guttr/`, so that `module.cpp` alone (wsmod C4) and the lab's module catalogue
-both compile it. The synthesis equations are unchanged. Left in the lab folder, not ported: the JS
+both compile it. The original throat synthesis equations are retained; the polyphonic post-grit
+routing and idle guard reset deliberately differ. Left in the lab folder, not ported: the JS
 reference (`reference/`), the comparison and render tools (`tools/`), the offline and benchmark apps
 (`apps/`), the standalone allocator path, telemetry, `loadPreset` and the old ABI 2 adapter.
 
-**Port check.** A scratch harness (not committed) built the package's standalone engine and this
-module side by side and rendered three 3-second timelines through each: one note; three notes with
+**Historical port check (initial port, before the poly-grit/idle-guard corrections).** A scratch
+harness (not committed) built the package's standalone engine and the initial module side by side and rendered three 3-second timelines through each: one note; three notes with
 growl, creak, flutter, rasp, vibrato and `wet` 0.4, with events between control ticks; and one note with
 8 throats, `looseness` 0.9 and `grit_after` on. With the package's parameters rounded to float, as the
 host delivers them, the outputs were **bit-identical** on every sample (x86-64, GCC 13.3, -O2,
-2026-11-27). With the package's double defaults the difference was at most 2e-6.
+2026-11-27). With the package's double defaults the difference was at most 2e-6. This is historical
+evidence for those three timelines, not a fresh standalone comparison of the corrected head; neither
+the new channel-local nonlinear routing nor the idle-restart changes have been validated against the
+old package. The original mono transfer is retained, but no blanket bit-identical claim is made.
 
 ## Signal path
 ```
@@ -27,7 +31,8 @@ notes ──▶ note table (16) ──▶ throat allocator (16 throats, 1–8 pe
            growl, creak, fry, breaks) ─ breath + rasp + flutter noise ─ 10 parallel SVF resonators
            (tube grid, ramped over the tick) ─ pitch-following HPF ─ antiderivative tanh drive ─
            gain, distance low-pass, pan, ITD, head shadow ──▶ dry L/R + room send
-bus: early reflections + 8-line FDN ─ [post-grit] ─ body/air shelves ─ low-mid guard ─ DC block ─
+poly texture + post-grit: channel-local dry/send shaping before the shared room
+bus: early reflections + 8-line FDN ─ [post-grit only for mono texture] ─ body/air shelves ─ low-mid guard ─ DC block ─
      level ─ 2.5 ms look-ahead limiter (ceiling 0.891) ──▶ left, right (one channel each)
 ```
 Files: `guttr/params.h` (the 37-row table), `guttr/common.h` (constants, hash and noise generators,
@@ -37,7 +42,8 @@ per-sample paths, idle bus), `dsp.h` (descriptor, parameter reading, events, pro
 
 ## Per-voice parameters
 - 23 parameters carry `PER_VOICE`: the phonation, instability, texture and tract controls, `style`,
-  `looseness`, `spread` and `size_spread`. They shape one note's throats. 14 are global: `attack`,
+  `looseness`, `spread` and `size_spread`. They shape throats on the selected event channel;
+  multiple notes on that channel share its controls. 14 are global: `attack`,
   `release`, `glide`, `throats`, `distance`, `azimuth`, `room`, `decay`, `wet`, `drive`, `body`, `air`,
   `level` and `grit_after`.
 - Each note remembers its event channel (clamped to 0–15). Its throats read per-voice parameters from
@@ -63,7 +69,10 @@ per-sample paths, idle bus), `dsp.h` (descriptor, parameter reading, events, pro
   room is driven by shaped sends and is not itself post-shaped. No new parameters or flags.
   The downstream shared effects still couple the voices. Fading steals keep their old channel
   until handover. Mode selection follows signal channel count, not the instantaneous values;
-  a poly texture cable may therefore change the sound even if all its values are equal.
+  a poly texture cable may therefore change the sound even if all its values are equal. The switch
+  takes effect on a control tick without crossfade and may be audible. Owner listening acceptance
+  of this intentional polyphonic timbre change is outstanding; shared downstream dynamics and
+  throat stealing still couple notes, so channel-local control does not imply isolated final audio.
 - Reasons for the global set: `distance` and `azimuth` place the whole group in space. `attack`, `release`
   and `glide` stay with the package's ensemble behaviour. `throats` sets allocation. The rest act on the
   shared bus.
@@ -78,12 +87,14 @@ per-sample paths, idle bus), `dsp.h` (descriptor, parameter reading, events, pro
   parameters are sampled at that frame and `control()` runs. After the tick's 128th frame, `finish_tick()`
   closes it: RNG hand-over, voice lifecycle, steal hand-over, ramp snapping, low-mid guard, idle check.
 - Note events act at their sample offsets. An event on a tick boundary acts before that tick's control.
-- Inside a tick the throats are independent: they read only tick-constant values. Each active throat
-  therefore renders its whole run into `dryL/dryR/send`, and then the bus runs per sample. Every sum is
-  in the same order as the package's sample-by-sample loop, so the output is bit-identical. Throat state
-  also stays hot in cache.
-- `tests.cpp` checks that host blocks of 1, 17, 128 and 512 frames are bit-identical. The timeline has
-  notes between ticks, a choke, per-voice ramps on two channels and global ramps.
+- Inside a tick the throats read tick-constant snapshots. The regular singer-major path (post-grit off
+  or mono texture) retains the original singer accumulation order into `dryL/dryR/send`; poly texture
+  post-grit instead groups singers by event channel and accumulates shaped channels in ascending order.
+  The bus runs per sample in both paths. This is not an assertion of identical output to the package.
+- `tests.cpp` compares both stereo buffers bit-for-bit for host blocks of 1, 17, 128 and 512 frames
+  on the committed timelines: off-tick note events, choke and global/per-voice ramps; poly post-grit
+  with two note channels; and release to idle followed by off-tick restart. These tests establish
+  partition invariance for their inputs, not all possible host timelines or topology transitions.
 
 ## Notes and throats
 - **16 note records.** `note_id` ≥ 0 matches by (source, `note_id`). Otherwise the newest record with
@@ -185,13 +196,15 @@ Pulse tables, flow and harmonic tables, the tube grid, room lines and ITD lines 
 9. **Idle bus** at −140 dBFS (above), including clearing low-mid guard state.
 10. **Removed:** telemetry (cycle history, f0, Rd, jitter and shimmer estimates, peak and RMS, low-mid
     and limiter readouts), the preset trim, `loadPreset` and the atomic `setParam` path.
-11. **Same output, less work:**
+11. **Original-path optimizations:**
     - throat-major rendering inside a tick;
     - the drive's previous antiderivative value is cached instead of recomputed.
 
 ## CPU (diagnostic, not facts)
-x86-64 VM ("Intel(R) Xeon(R) Processor", 4 vCPU), GCC 13.3, Release `-O3`, 2026-11-27, this commit's
-tree. Hosted and VM timings are noisy, and the maximum varies from run to run.
+Historical initial-port measurements: x86-64 VM ("Intel(R) Xeon(R) Processor", 4 vCPU), GCC 13.3,
+Release `-O3`, 2026-11-27, before the poly-grit/idle-guard corrections. Hosted and VM timings are
+noisy, and the maximum varies from run to run. These numbers are not measurements of active
+polyphonic post-grit routing.
 - **Lab CPU probe** (T0: 2 instances, 48 kHz, 128 frames, no notes, so it measures the idle bus):
   - 0 allocations, 0 faults;
   - worst block 15.3–28.4 µs over three runs (0.6–1.1% of the 2,667 µs period), p99 about 1 µs.
@@ -206,27 +219,28 @@ tree. Hosted and VM timings are noisy, and the maximum varies from run to run.
 
   The package's report measured 16 throats at a 196 µs median and a 2,261 µs worst block on its host
   (different machine).
-- No Raspberry Pi or Cortex-M7 measurement has been made. T2 (callgrind and Cortex-M7 advisory) is
+- Active polyphonic post-grit cost has not been separately measured; the idle probe does not establish
+  it. No Raspberry Pi or Cortex-M7 measurement has been made. T2 (callgrind and Cortex-M7 advisory) is
   owner-requested.
 
 ## Limitations
 Lab-facing gaps are rows in [`LAB_REQUESTS.md`](../../LAB_REQUESTS.md) (rule 2 of AGENTS.md); none is filed in
 the lab unless the owner asks. Each bullet names its row. The module has no code workaround for any of them.
-- **`panel.json` needs the workshop Studio overlay** (`tools/studio`, applied by `wstest ui` and `wstest app`;
-  overlay PR #54). The panel uses grid cells, horizontal sliders, a band and the parameter
+- **`panel.json` needs the merged workshop Studio overlay** (`tools/studio`, applied by `wstest ui`,
+  `wstest app` and `wstest shot`; [PR #54](https://github.com/kalharbi11/wirescape-test/pull/54)). The panel uses grid cells, horizontal sliders, a band and the parameter
   rail +/-, which the pinned Studio lacks. Without the overlay it does not render as designed. IDs, flags and DSP
-  do not depend on it. LAB_REQUESTS.md LR-1.
+  do not depend on it. [LR-1](../../LAB_REQUESTS.md).
 - **No module-to-UI telemetry in the lab ABI.** The package's live readouts (active throats, f0, Rd,
-  jitter and shimmer %, low-mid cut, limiter reduction) have no channel to Studio, so they were dropped. LR-2.
+  jitter and shimmer %, low-mid cut, limiter reduction) have no channel to Studio, so they were dropped. [LR-2](../../LAB_REQUESTS.md).
 - **Studio presets are hard-coded in lab core code.** A module cannot ship presets, so the 11 texture
-  presets live in README.md as values. LR-3.
+  presets live in README.md as values. [LR-3](../../LAB_REQUESTS.md).
 - **No per-module panel colour.** `PanelOverride` has no colour or accent key, so `panel.json` cannot give
-  GUTTR its own colour. LR-4.
+  GUTTR its own colour. [LR-4](../../LAB_REQUESTS.md).
 - **The lab CPU probe sends no notes,** so for an instrument it times only the idle path. The active cost
-  above comes from `tests.cpp`. LR-5.
+  above is historical; active poly-grit cost remains unmeasured. [LR-5](../../LAB_REQUESTS.md).
 - **FFT scratch stays allocated.** The SDK has no prepare-time scratch that can be returned, so 768 KB of
-  each instance's allocation is used only during `prepare`. LR-6.
+  each instance's allocation is used only during `prepare`. [LR-6](../../LAB_REQUESTS.md).
 - **Render cases send velocity 1 on channel 0 only**, and `evidence.py` requires equal left and right.
   The demos therefore sum `left` and `right` through `essentials.mixer` at 0.5 each. Distinct voice
   channels need `host.keyboard` in the patch (the third demo). The evidence checks cannot tell whether each
-  note got its own value, so `tests.cpp` checks that. LR-7.
+  note got its own value, so `tests.cpp` checks that. [LR-7](../../LAB_REQUESTS.md).

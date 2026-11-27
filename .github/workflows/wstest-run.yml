@@ -101,6 +101,9 @@ jobs:
         env:
           SANITIZE: ${{ inputs.sanitize && '--sanitize' || '' }}
         run: python tools/wstest.py selftest $SANITIZE
+      - name: Offline render preview smoke (Macro)
+        if: inputs.all && inputs.platform == 'linux-x64' && !inputs.sanitize
+        run: python tools/wstest.py render macro
       - name: Record wall time
         if: always()
         run: |

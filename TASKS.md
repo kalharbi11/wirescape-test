@@ -10,7 +10,7 @@ One task issue, one branch and one PR. A bundle is a sequence of tasks, never a 
 - GUTTR is the active first case study. Its existing build owns `modules/guttr/**`; no bundle edits it.
 - This queue is wirescape-test only. Lab is held; only lab #708 is excepted by the owner, outside
   this queue. Do not open lab PRs, promote modules, or merge lab changes from these tasks.
-  Lab limitation issues remain allowed; link them from DESIGN.md.
+  Lab-facing gaps go to `LAB_REQUESTS.md`; link the rows from DESIGN.md.
 - `tools/**` and `.github/workflows/**` have one PR at a time, including fixes. PR #19 is merged.
   Every new tooling PR starts from main after #19 and after its preceding tooling task merges.
   Do not stack tooling branches or start later tooling implementations early.
@@ -39,8 +39,9 @@ One task issue, one branch and one PR. A bundle is a sequence of tasks, never a 
    from eligible main. Module tasks in separate folders can proceed concurrently.
 5. Issue comments record `ready`, `in progress`, `review` or `blocked: <dependency>` and the PR link.
    Close after merge. Hand back the claim when stopping. No task is assigned by this document.
-6. If a module needs a lab change, file one `limitation found` issue and stop that dependency;
-   only a folder-local documented workaround is allowed. Never weaken gates.
+6. If a module needs a lab change, add or reuse one row in `LAB_REQUESTS.md` and stop that dependency
+   (nothing is filed in the lab unless the owner asks); only a folder-local documented workaround is
+   allowed, except for the Architect-approved app-only Studio overlay under `tools/studio/` (PR #54). Never weaken gates.
 
 ## Bundles
 

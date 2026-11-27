@@ -30,11 +30,13 @@ oldest notes' throats are stolen (released notes first), each with a one-tick fa
 neither stops every note of the source (source `UINT32_MAX`: every source).
 
 ## Parameters
-**Per-voice** parameters (`PER_VOICE`) are read for each note on the note's event channel, so poly
-modulation on voice channel *c* changes only the note that arrived on channel *c* (`host.keyboard`
-sends voice *c* on channel *c*). A one-channel signal applies to every note. **Global** parameters are
-read once, on channel 0. All are read at the fixed 128-frame control tick; a note-on also reads them at
-its own frame.
+**Per-voice** parameters (`PER_VOICE`) are read on each note's event channel. Poly modulation on
+channel *c* selects the upstream controls for all notes on channel *c* (not a unique note identity);
+`host.keyboard` normally assigns separate voice channels. A one-channel signal applies to every
+note, and a missing channel falls back to channel 0. The shared room, low-mid guard, limiter and
+finite throat budget can couple audible contributions of different notes; this is channel-local
+parameter routing, not isolation of the final stereo waveform. **Global** parameters are read on
+channel 0. All are sampled on the fixed 128-frame control tick; note-on also reads at its own frame.
 
 | # | ID | Name | Range | Default | Unit | Scope | Flags |
 |---:|---|---|---|---:|---|---|---|
@@ -81,10 +83,11 @@ are linear. `throats` sets how many throats a note allocates, so it is stepped a
 read when a note starts. `grit_after` switches growl, creak, rasp, jitter and shimmer to a tanh drive.
 With one-channel texture signals it retains the original drive on the mixed dry/wet bus. If any of
 those five signals is polyphonic, each note channel's summed throats and room send are shaped
-independently before the shared room, then mixed; this avoids channel 0 controlling other channels.
-The shared room, guard and limiter still act on the mix. Flutter, breaks and tail fry are suppressed
-in post-grit mode as in the original synthesis. Switching between mono and poly texture routing
-changes the sound; see DESIGN.md.
+with that channel's controls before the shared room, then mixed. The shared room, guard and limiter
+still act on the mix. Flutter, breaks and tail fry are suppressed in post-grit mode as in the original
+synthesis. Switching between mono and poly texture routing changes the transfer at the next control
+tick, without a crossfade; an audible discontinuity is possible. Listening acceptance of the
+intentional polyphonic sound change is outstanding. See DESIGN.md.
 
 ## Presets
 The old package's 11 texture presets, as parameter values (Studio presets are fixed in lab core code, so
@@ -127,12 +130,19 @@ Every preset leaves the other parameters at their defaults (`glide` 60, `throats
 `spread` 0.5, `size_spread` 0.4, `distance` 0.15, `azimuth` 0, `room` 0.5, `decay` 1.8, `wet` 0.28,
 `body` 0, `air` 0, `grit_after` 0).
 
+## Verification
+The committed tests compare both stereo buffers bit-for-bit across 1, 17, 128 and 512-frame host
+blocks for the tested modulation, note-event, poly post-grit and idle-restart timelines. This is not a
+universal guarantee for arbitrary host parameter-signal topology changes or comparison against the
+standalone package. The original port comparison is historical; see DESIGN.md.
+
 ## Files
 `dsp.h` (module), `module.cpp` (registration), `guttr/*.h` (header-only core: `params.h`, `common.h`,
 `tables.h`, `room.h`, `singer.h`, `engine.h`), `tests.cpp`, `demos/` (a chord with release and tail; a
 low textured note; four notes through `host.keyboard` with pitch modulating each note's vowel),
 `presentation.json` (catalogue entry), `panel.json` (Studio panel layout, eight numbered sections),
-`module.json` (until lab MB2).
+`module.json` (until lab MB2). The panel uses the merged workshop Studio overlay (#54); render it with
+`python tools/wstest.py shot guttr` (add `--dark` for the dark theme), without launching devices.
 
 ```sh
 python tools/wstest.py t0 guttr              # check, build, tests, demos, CPU probe
