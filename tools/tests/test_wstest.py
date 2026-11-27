@@ -9,6 +9,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
+from types import SimpleNamespace
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -464,6 +466,33 @@ class StudioOverlayTests(FakeLab):
         with self.assertRaisesRegex(wstest.Refused, "outside apps/studio/src/"):
             wstest.load_overlay(self.lab)
 
+    def test_base_requires_mapping_and_exact_normalized_file_set(self):
+        base = self.overlay / "BASE.json"
+        for value in ([], None, "invalid"):
+            write(base, json.dumps({"files": value}))
+            with self.assertRaisesRegex(wstest.Refused, "mapping"):
+                wstest.load_overlay(self.lab)
+        self.base({"apps/studio/src/../outside.ts": None})
+        with self.assertRaisesRegex(wstest.Refused, "normalized"):
+            wstest.load_overlay(self.lab)
+        self.base()
+        (self.overlay / self.NEW).unlink()
+        with self.assertRaisesRegex(wstest.Refused, "missing overlay"):
+            wstest.load_overlay(self.lab)
+        (self.overlay / self.SRC).unlink()
+        with self.assertRaisesRegex(wstest.Refused, "missing overlay"):
+            wstest.load_overlay(self.lab)
+
+    def test_refresh_reverts_removed_overlay_files(self):
+        m = self.new_module()
+        scratch, _ = wstest.prepare_app_tree(self.lab, [m])
+        (self.overlay / self.NEW).unlink()
+        (self.overlay / self.SRC).unlink()
+        write(self.overlay / "BASE.json", json.dumps({"files": {}}))
+        wstest.refresh_app_files(self.lab, scratch, [m], self.lab.tracked())
+        self.assertEqual((scratch / self.SRC).read_text(), "// pinned\n")
+        self.assertFalse((scratch / self.NEW).exists())
+
     def test_refresh_follows_overlay_edits_and_keeps_installs(self):
         m = self.new_module()
         scratch, _ = wstest.prepare_app_tree(self.lab, [m])
@@ -486,6 +515,44 @@ class StudioOverlayTests(FakeLab):
         git(self.lab.dir, "apply", "--check", str(self.root / "p.patch"))
         self.assertIn("+// overlay", patch)
         self.assertIn("--- /dev/null", patch)
+
+
+class ShotTests(unittest.TestCase):
+    def test_chromium_preference(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            browser_root = Path(tmp)
+            exe = write(browser_root / "chrome-linux64" / "chrome", "")
+            exe.chmod(0o755)
+            with mock.patch.dict(os.environ, {"WIRESCAPE_CHROMIUM": "explicit"}):
+                self.assertEqual(wstest.shot_chromium(browser_root), "explicit")
+            with mock.patch.dict(os.environ, {}, clear=True):
+                self.assertEqual(wstest.shot_chromium(browser_root), str(exe))
+                self.assertIsNone(wstest.shot_chromium(browser_root / "missing"))
+
+    def test_server_stops_when_browser_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = root / "module"
+            write(folder / "presentation.json", "{}")
+            (root / "apps/studio/node_modules").mkdir(parents=True)
+            module = SimpleNamespace(folder=folder, name="thing")
+            server = mock.Mock()
+            server.poll.return_value = None
+            args = SimpleNamespace(git_deps=False, out=str(root / "shot.png"), port=12345, dark=False)
+            with mock.patch.object(wstest, "Lab"), \
+                 mock.patch.object(wstest, "app_modules", return_value=[module]), \
+                 mock.patch.object(wstest, "module_info_id", return_value="test.thing"), \
+                 mock.patch.object(wstest, "prepare_app_tree", return_value=(root, {})), \
+                 mock.patch.object(wstest, "npm_install"), \
+                 mock.patch.object(wstest, "tool_path", side_effect=lambda x: x), \
+                 mock.patch.object(wstest.subprocess, "Popen", return_value=server), \
+                 mock.patch.object(wstest.socket, "create_connection"), \
+                 mock.patch.object(wstest, "stop_process") as stop, \
+                 mock.patch.object(wstest, "run", return_value=SimpleNamespace(
+                     returncode=1, stdout="", stderr="browser failed")) as run:
+                self.assertEqual(wstest.cmd_shot(args), 1)
+                self.assertIn("http://127.0.0.1:12345/", run.call_args.args[0])
+                stop.assert_called_once_with(server)
 
 
 class RealOverlayTests(unittest.TestCase):
