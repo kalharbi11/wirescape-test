@@ -11,8 +11,13 @@ python tools/wstest.py fetch      # the pinned lab into .lab/ (add --git-deps be
 ```
 
 ## The loops
-**a. Sound, offline.** `python tools/wstest.py t0 <name>` builds, runs the tests and renders every
-`modules/<name>/demos/*.json` to WAVs in `build/wstest-out/release/<name>/`. Open them in any player.
+**a. Sound, offline.** `python tools/wstest.py render <name>` is the fast change-and-listen loop.
+It registers the module, builds only the renderer (and the MB1 descriptor prerequisite where required),
+and renders every demo to `build/wstest-out/render/<name>/<demo-stem>/audio.wav`, printing peak
+and finite status. Use `--demo <file.json>` to select one, and `--rate 44100 --block 48` to override
+the demo settings. Open the WAV in your player; the harness never opens devices.
+This preview skips test-tier assertions. Run `python tools/wstest.py t0 <name>` for the full checks
+and evidence renders under `build/wstest-out/release/<name>/`.
 
 **b. The real app.** `python tools/wstest.py app <name>... --launch`
 Builds the engine (`wirescape-engine`), Studio and the Electron desktop app from the scratch copy, with your

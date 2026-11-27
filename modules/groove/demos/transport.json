@@ -1,0 +1,148 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "Groove transport edge and gate output",
+  "rate": 48000,
+  "block": 128,
+  "seconds": 1,
+  "seed": 7,
+  "peak_limit": 1.2,
+  "patch": {
+    "format": "wirescape.native.patch",
+    "version": 2,
+    "settings": {
+      "seed": 7,
+      "feedback_block": 16,
+      "max_channels": 1
+    },
+    "name": "Groove first-step gate",
+    "modules": [
+      {
+        "id": 1,
+        "module": "sequencing.groove",
+        "version": 1,
+        "parameters": {
+          "run": 0
+        },
+        "config": {
+          "version": 2,
+          "bpm": 120,
+          "tracks": [
+            {
+              "length": 8,
+              "steps": [
+                {
+                  "kind": "note",
+                  "key": 60,
+                  "velocity": 0.8
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 2,
+        "module": "essentials.vco",
+        "version": 2,
+        "parameters": {
+          "frequency": 220
+        }
+      },
+      {
+        "id": 3,
+        "module": "essentials.vca",
+        "version": 2,
+        "parameters": {
+          "gain": 0.6
+        }
+      },
+      {
+        "id": 4,
+        "module": "essentials.output",
+        "version": 2,
+        "parameters": {}
+      }
+    ],
+    "connections": [
+      {
+        "kind": "signal",
+        "from": {
+          "module": 1,
+          "port": "t1_gate"
+        },
+        "to": {
+          "module": 3,
+          "port": "gain_cv"
+        }
+      },
+      {
+        "kind": "signal",
+        "from": {
+          "module": 2,
+          "port": "audio"
+        },
+        "to": {
+          "module": 3,
+          "port": "audio"
+        }
+      },
+      {
+        "kind": "signal",
+        "from": {
+          "module": 3,
+          "port": "audio"
+        },
+        "to": {
+          "module": 4,
+          "port": "audio"
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "module": 4,
+        "port": "audio",
+        "bus_channel": 0
+      },
+      {
+        "module": 4,
+        "port": "audio",
+        "bus_channel": 1
+      }
+    ]
+  },
+  "events": [
+    {
+      "frame": 12800,
+      "type": "setParam",
+      "node": 1,
+      "parameter": "run",
+      "value": 1
+    },
+    {
+      "frame": 12928,
+      "type": "setParam",
+      "node": 1,
+      "parameter": "run",
+      "value": 0
+    }
+  ],
+  "windows": [
+    {
+      "kind": "silent",
+      "start": 1000,
+      "end": 11000
+    },
+    {
+      "kind": "active",
+      "start": 14000,
+      "end": 17500
+    },
+    {
+      "kind": "silent",
+      "start": 21000,
+      "end": 45000
+    }
+  ],
+  "frequencies": []
+}
