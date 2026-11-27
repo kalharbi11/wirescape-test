@@ -81,6 +81,14 @@ Callgrind and Cortex-M7 are advisory. **Lab #652 final ruling (0024 §9.1):**
 - **Blocks** are 16, 17, 48, 128 and 512 (§9.2). A row skips only when the demo itself refuses as the
   lab's `adsr-notes` case does at that rate and block (lab #663).
 
+## Linux panel smoke (T0)
+The separate Linux T0 app-smoke job consumes the existing changed-module scope (all modules for tools,
+workflow or pin changes). For each scoped module with `panel.json`, it runs `ui --no-serve`,
+`app` with `ELECTRON_SKIP_BINARY_DOWNLOAD=1` (never `--launch`), then `shot` using the Studio's
+locked Playwright Chromium. PNGs in `build/shots/` are uploaded as `panel-smoke-*` artifacts.
+Non-panel modules are explicitly skipped; command failures fail the required `t0` gate. This checks
+buildability and the fake-engine card, not Electron runtime, audio, or MIDI. Devices stay off.
+
 ## `app`, `ui` and `panel.json` (local conveniences, not test tiers)
 `modules/<name>/panel.json` is optional: one Studio `PanelOverride` object plus the SPDX key (keys in
 [PROTOTYPING.md](../PROTOTYPING.md); unknown keys and an `id` that does not match `dsp.h` are refused).
