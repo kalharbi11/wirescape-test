@@ -199,7 +199,7 @@ tree. Hosted and VM timings are noisy, and the maximum varies from run to run.
 Lab-facing gaps are rows in [`LAB_REQUESTS.md`](../../LAB_REQUESTS.md) (rule 2 of AGENTS.md); none is filed in
 the lab unless the owner asks. Each bullet names its row. The module has no code workaround for any of them.
 - **`panel.json` needs the workshop Studio overlay** (`tools/studio`, applied by `wstest ui` and `wstest app`;
-  overlay PR to be linked when it opens). The panel uses grid cells, horizontal sliders, a band and the parameter
+  overlay PR #54). The panel uses grid cells, horizontal sliders, a band and the parameter
   rail +/-, which the pinned Studio lacks. Without the overlay it does not render as designed. IDs, flags and DSP
   do not depend on it. LAB_REQUESTS.md LR-1.
 - **No module-to-UI telemetry in the lab ABI.** The package's live readouts (active throats, f0, Rd,
