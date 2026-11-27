@@ -456,7 +456,7 @@ void test_mod9_stateless_contract() {
         REQUIRE(original.descriptor->save_state(original.state, &writer) == WS2_UNSUPPORTED);
         REQUIRE(bytes.size() == 0);
         Source src{&bytes, 0};
-        ws2_reader reader{sizeof(reader), &src, uint32_t(bytes.size())};
+        ws2_reader reader{sizeof(reader), &src, source, uint32_t(bytes.size())};
         REQUIRE(restored.descriptor->load_state(restored.state, &reader) == WS2_UNSUPPORTED);
         REQUIRE(src.pos == 0);
         std::copy(std::begin(original.values), std::end(original.values), std::begin(restored.values));
