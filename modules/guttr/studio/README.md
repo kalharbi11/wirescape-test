@@ -119,8 +119,10 @@ Electron. If Playwright's pinned browser is missing, point `WIRESCAPE_CHROMIUM` 
   - parameter nodes start as Pressure and Vowel at 0/2; + gives Breath (1/2), + again gives Growl
     (2/2), and a third + stays at 2/2; − twice returns to 0/2; with a cable on Growl at 0/2, Growl
     keeps its node.
-- Lab Studio Playwright specs on the patched Studio: `conditional-controls`, `kit-controls`,
-  `macro-panel`, `module-presets`, `quad-vca`, `mixer-output`, `curated`, `review-35` → 43 passed.
+- The lab's full Studio Playwright suite on the patched Studio (fresh `npm run build`, including the
+  rail +): 411 passed, 1 skipped, 1 failed. The failure is `review-artifacts.spec.ts`, which records
+  video and could not start because this container has no Playwright ffmpeg binary. It fails before
+  any panel code runs, and it failed the same way on the build without the rail change.
 
 ## To adopt it
 1. The Architect approves or amends the schema and the layout.
