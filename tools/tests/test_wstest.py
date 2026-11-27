@@ -76,6 +76,40 @@ class FakeLab(unittest.TestCase):
 
 
 class RegistrationTests(FakeLab):
+    def test_direct_override_keeps_host_tests_and_executes_module_test(self):
+        folder = self.new_module("groove").folder
+        regression = "abi2_groove_tests"
+        write(folder / "tests.cpp", "// fixture\n")
+        write(folder / "CMakeLists.txt",
+              f'add_custom_target({regression})\n'
+              f'add_test(NAME {regression} COMMAND "${{CMAKE_COMMAND}}" -E true)\n')
+        override = wstest.Module("groove", folder, "override", "ns::Thing")
+        edits = wstest.registration_edits(self.lab.dir, [override])
+        self.assertEqual(set(edits), {wstest.ENGINE_CMAKE})
+
+        scratch = self.root / "scratch"
+        write(scratch / "CMakeLists.txt",
+              'cmake_minimum_required(VERSION 3.20)\nproject(Fixture NONE)\nenable_testing()\n'
+              'add_custom_target(groove_runtime_tests)\n'
+              'add_test(NAME groove_runtime_tests COMMAND "${CMAKE_COMMAND}" -E true)\n'
+              'add_subdirectory(engine)\n')
+        engine = edits[wstest.ENGINE_CMAKE].replace(
+            "add_subdirectory(../modules/existing existing)\n", "")
+        write(scratch / wstest.ENGINE_CMAKE, engine)
+        write(scratch / "modules/groove/CMakeLists.txt", (folder / "CMakeLists.txt").read_text())
+        build = self.root / "build"
+        subprocess.run(["cmake", "-S", str(scratch), "-B", str(build)], check=True,
+                       capture_output=True, text=True)
+        names = wstest.ctest_names(build, "Release")
+        selected = wstest.module_tests(override, names)
+        self.assertCountEqual(selected, [regression, "groove_runtime_tests"])
+        result = subprocess.run(["ctest", "--test-dir", str(build), "-C", "Release",
+                                 "-R", "^(" + "|".join(selected) + ")$", "--no-tests=error"],
+                                check=True, capture_output=True, text=True)
+        self.assertRegex(result.stdout, r"Test\s+#\d+: abi2_groove_tests\s+\.+\s+Passed")
+        self.assertRegex(result.stdout, r"Test\s+#\d+: groove_runtime_tests\s+\.+\s+Passed")
+        self.assertIn(regression, wstest.module_tests(override, ["groove_runtime_tests"]))
+
     def test_single_registration_line_names_the_class(self):
         self.assertEqual(wstest.registration_class(self.new_module().folder), "ns::Thing")
 
