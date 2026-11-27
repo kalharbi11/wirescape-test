@@ -14,6 +14,10 @@ Design: lab [`proposals/0024`](https://github.com/kalharbi11/wirescape-lab/blob/
 are merged: `function_envelope` and `adsr` (overrides; T2 blocked on lab #665 and #664), and `random`,
 `macro` and `clock_divmult` (new; T1 green, T2 not yet requested). See [modules/README.md](modules/README.md).
 
+
+Active task pool and safe parallel work: [TASKS.md](TASKS.md). Bundles A–E are available without
+editing GUTTR; optional LFO and the next lab pin have explicit holds. No agents are assigned in docs.
+
 ## Layout
 ```
 LAB_PIN                      the one lab commit this repo builds against
