@@ -6,7 +6,7 @@ One row per folder in `modules/`. Specs are in lab
 §4 (and §3.1 for Macro). Tasks are filed as issues in this repo by the lab Architect.
 - **Kind:** `new`, or `override` of the lab folder of the same name.
 - **Status:** `planned`, `draft`, `T1`, `T2`, `promoting: lab #PR`, `promoted: lab #PR`, or
-  `blocked: lab #N`.
+  `blocked: LR-n` (a [`LAB_REQUESTS.md`](../LAB_REQUESTS.md) row).
 
 | Folder | ID | Kind | Spec | Task | Stage | Status |
 |---|---|---|---|---|---|---|

@@ -83,7 +83,7 @@ The harness never commits to the lab. It recreates a scratch copy of the pinned 
 - **Before lab MB2:** it adds the three registration lines there (CMake `add_subdirectory`, the catalogue
   `#include`, `WS_APP_MODULE` from the folder's `WS_REGISTER_MODULE` line).
 - **After MB2:** it copies the folder.
-- Any other change the module needs is a lab issue labelled `limitation found` (see AGENTS.md).
+- Any other change the module needs is a row in [`LAB_REQUESTS.md`](LAB_REQUESTS.md) (see AGENTS.md rule 2).
 
 ## Lab pin
 `LAB_PIN` names a commit on lab `main`. Bumps are their own PR and run T0 and T1 for every module. Bump

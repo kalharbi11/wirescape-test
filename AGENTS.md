@@ -26,11 +26,15 @@ keep both rows on conflict. Separate sessions use separate checkouts/build trees
    `.github/workflows/**`, `LAB_PIN` and the top-level docs.
 2. **Never edit the lab from here.** The only change made to a lab tree is the harness's mechanical
    registration in its scratch copy.
-   - A module that needs anything else gets **one issue in `kalharbi11/wirescape-lab` labelled
-     `limitation found`**. Anything else means the engine, host, SDK, Studio, a lab test or a lab tool.
-   - The issue holds the module and PR, what it needed, the smallest lab change, and any workaround.
-   - A workaround may only be code inside the module's own folder, listed in `DESIGN.md` "Limitations".
-   - A module that needs a lab behaviour change is blocked (`blocked: lab #N` in `modules/README.md`).
+   - A module that needs anything else gets **one row in [`LAB_REQUESTS.md`](LAB_REQUESTS.md)** (the living
+     ledger of lab-facing gaps). Anything else means the engine, host, SDK, Studio, a lab test or a lab tool.
+   - The row (ID `LR-n`) holds the module and PR that found it, what the lab lacks, the smallest lab change,
+     and any workaround here. Check the ledger first and reuse an existing row.
+   - **Nothing is filed in `kalharbi11/wirescape-lab` unless the owner asks** (owner, 2026-11-27). When the
+     owner asks, file the issue and set the row to `sent to lab #N`.
+   - A workaround may only be code inside the module's own folder, listed in `DESIGN.md` "Limitations",
+     which links to its `LR-n` rows.
+   - A module that needs a lab behaviour change is still blocked (`blocked: LR-n` in `modules/README.md`).
 3. **Realtime rules in module code:** no allocation, locks, I/O, exceptions, logging or JSON in
    process, event or reset. Use fixed arrays (at most 16 voices), no heap and no OS calls, so the module
    stays portable to Daisy-class hardware. Document any `double` state in `DESIGN.md`.
@@ -82,7 +86,8 @@ chat shell does not block this route when the connected tools can read and write
   - [ ] flags follow the modulatable policy (6) and the spec;
   - [ ] `tests.cpp` covers the spec's test rows, 1 and 16 channels where polyphonic, and state;
   - [ ] at least one demo; `README.md` (IDs, ports, parameters, ranges) and `DESIGN.md` updated;
-  - [ ] SPDX and licences (9); no lab edits (2).
+  - [ ] SPDX and licences (9); no lab edits (2); lab-facing gaps are `LAB_REQUESTS.md` rows, none filed in the lab
+    unless the owner asked, and `DESIGN.md` "Limitations" links to them.
 - **Any agent merges (squash)** when the review names the head SHA and T0 and T1 are green on that head.
   Docs-only PRs need only the review.
 - **T2 is requested by the owner** (0024 §9.3). Ask for it in the PR when the module is done. An agent
