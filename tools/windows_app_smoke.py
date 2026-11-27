@@ -13,6 +13,17 @@ import urllib.request
 import wstest
 
 
+def forward_diagnostics(output: str | bytes, stream=None) -> None:
+    """Keep diagnostics printable on legacy Windows redirected streams."""
+    if stream is None:
+        stream = sys.stdout
+    if isinstance(output, bytes):
+        output = output.decode("utf-8", errors="replace")
+    encoding = stream.encoding or "utf-8"
+    output = output.encode(encoding, errors="backslashreplace").decode(encoding)
+    print(output, file=stream, flush=True)
+
+
 def smoke(modules: list[str], root: Path = wstest.ROOT, run=subprocess.run,
           console_flag=None) -> None:
     for name in modules:
@@ -42,13 +53,14 @@ def smoke(modules: list[str], root: Path = wstest.ROOT, run=subprocess.run,
                           "--interrupt-worker", name], cwd=root, check=True,
                          creationflags=console_flag, timeout=900,
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         env={**os.environ, "PYTHONIOENCODING": "utf-8:backslashreplace"},
                          text=True, encoding="utf-8", errors="replace")
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
-            print(error.stdout or "Windows lifecycle worker produced no output", flush=True)
+            forward_diagnostics(error.stdout or "Windows lifecycle worker produced no output")
             raise
         else:
             if worker.stdout:
-                print(worker.stdout, flush=True)
+                forward_diagnostics(worker.stdout)
 
 
 def listener_present(port: int) -> bool:
@@ -139,7 +151,7 @@ def interrupt_worker(name: str) -> None:
                         if proc.poll() is None:
                             proc.kill()
                         proc.wait(timeout=10)
-                print(log_path.read_text(encoding="utf-8", errors="replace"), flush=True)
+                forward_diagnostics(log_path.read_text(encoding="utf-8", errors="replace"))
 
 
 if __name__ == "__main__":
