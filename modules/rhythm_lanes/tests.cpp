@@ -122,4 +122,41 @@ static void realtime() {
         for(unsigned i=0;i<17;++i) VERIFY(std::isfinite(r.f.output[l][0][i]) && r.f.output[l][0][i]>=0 && r.f.output[l][0][i]<=1);
     }
 }
-int main(){euclidean();descriptor();probability_and_reset();latching();shapes_and_phase();realtime();}
+static std::vector<uint8_t> save(DspFixture &f) {
+    std::vector<uint8_t> bytes;
+    ws2_writer w{sizeof(w), &bytes, [](void *ctx, const void *p, uint32_t n) {
+        auto &b = *static_cast<std::vector<uint8_t> *>(ctx);
+        b.insert(b.end(), static_cast<const uint8_t *>(p), static_cast<const uint8_t *>(p) + n);
+        return int(WS2_OK);
+    }};
+    VERIFY(f.d->save_state(f.state, &w) == WS2_OK);
+    return bytes;
+}
+static int load(DspFixture &f, const std::vector<uint8_t> &bytes) {
+    struct Cursor { const std::vector<uint8_t> &b; size_t pos = 0; } c{bytes};
+    ws2_reader r{sizeof(r), &c, [](void *ctx, void *p, uint32_t n) {
+        auto &c = *static_cast<Cursor *>(ctx);
+        if (n > c.b.size() - c.pos) return int(WS2_INVALID);
+        std::memcpy(p, c.b.data() + c.pos, n);
+        c.pos += n;
+        return int(WS2_OK);
+    }, uint32_t(bytes.size())};
+    return f.d->load_state(f.state, &r);
+}
+static void state_round_trip() {
+    Rig a,b;
+    a.f.parameter[1][0][0]=b.f.parameter[1][0][0]=7;
+    a.run(256);a.run(17);
+    auto snapshot=save(a.f);
+    VERIFY(load(b.f,snapshot)==WS2_OK && save(b.f)==snapshot);
+    b.frame=a.frame;
+    for(int i=0;i<20;++i){
+        a.run(128);b.run(128);
+        for(unsigned l=0;l<4;++l)
+            VERIFY(std::memcmp(a.f.output[l][0],b.f.output[l][0],128*sizeof(float))==0);
+    }
+    auto before=save(b.f);
+    snapshot.pop_back();
+    VERIFY(load(b.f,snapshot)==WS2_INVALID && save(b.f)==before);
+}
+int main(){euclidean();descriptor();probability_and_reset();latching();shapes_and_phase();realtime();state_round_trip();}
