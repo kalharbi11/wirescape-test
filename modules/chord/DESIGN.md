@@ -23,5 +23,13 @@ then uses allocated pitch/gate lanes to drive VCO/ADSR/VCA;
 wstest identical must compare the unmodulated output with the pristine pin.
 
 ## Limitations
-No new lab changes or workarounds. Original instance-tag alias and activation
-capacity limits remain as documented in README. Hosted CI is the routine verification environment. Require T0/T1 on the PR head.
+Blocked: [lab #718](https://github.com/kalharbi11/wirescape-lab/issues/718).
+The pinned isolated CPU probe passes null configuration with zero bytes to
+prepare, whereas Chord requires a unique four-byte graph-instance tag.
+The corrected demo and abi2_chord_tests pass on Linux x64 and ARM64 at
+1adbbad; the CPU probe refuses prepare, so identical is not reached in release.
+No module-local workaround: accepting missing tags would weaken note identity
+isolation. Keep the pinned production contract and all gates intact.
+Original instance-tag alias and activation capacity limits remain as documented
+in README. Resume once the lab limitation is fixed and the owner permits a pin
+update. Hosted CI is the routine verification environment.
