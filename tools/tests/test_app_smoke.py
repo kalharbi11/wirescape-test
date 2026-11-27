@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Device-free tests for the Linux app smoke orchestration."""
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -17,7 +16,7 @@ class AppSmokeTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
-        (self.root / "LAB_PIN").write_text("abcdef0123456789\n")
+        (self.root / "LAB_PIN").write_text("repo=example/lab\ncommit=abcdef0" + "1" * 33 + "\n")
         for name in ("panel", "plain", "untouched"):
             folder = self.root / "modules" / name
             folder.mkdir(parents=True)
