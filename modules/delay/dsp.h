@@ -23,7 +23,7 @@ struct Delay {
                                        ws::port("clock", "Clock", WS2_TRIGGER, WS2_FIRST)};
     static constexpr std::array outputs{ws::port("left", "Out L", WS2_AUDIO, WS2_POLY, 0, "stereo"),
                                         ws::port("right", "Out R", WS2_AUDIO, WS2_POLY, 0, "stereo")};
-    static constexpr uint32_t stepped = WS2_STEPPED | WS2_AUTOMATABLE;
+    static constexpr uint32_t stepped = WS2_STEPPED | WS2_AUTOMATABLE | WS2_MODULATABLE;
     static constexpr std::array params{
         ws::param("time", "Time", 0.001f, 2.f, 0.375f, "s", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LOG, 0),
         ws::param("division", "Division", 0, 7, 5, "", stepped, WS2_LINEAR, 1, 4, 1),

@@ -16,10 +16,10 @@ clock, feedback that holds instead of growing, a tone control inside the loop, a
 | ID | Range | Default | Notes |
 |---|---|---|---|
 | `time` | 0.001 to 2.0 s, log | 0.375 | ignored while a patched clock has a measured period |
-| `division` | stepped 0 to 7 | 5 | x1/4, x1/3, x1/2, x2/3, x3/4, x1, x3/2, x2 of the clock period |
+| `division` | stepped, modulatable 0 to 7 | 5 | x1/4, x1/3, x1/2, x2/3, x3/4, x1, x3/2, x2 of the clock period |
 | `feedback` | 0 to 1 | 0.4 | 1.0 holds repeats at about the input level (loop limiter), never growth |
 | `tone` | -1 to +1 | 0 | in the loop: -1 low-pass 800 Hz, 0 flat (bit-exact bypass), +1 high-pass 1.5 kHz |
-| `mode` | stepped 0 or 1 | 0 | 0 Stereo, 1 Ping-pong (input averaged to mono, bounced L, R, L...) |
+| `mode` | stepped, modulatable 0 or 1 | 0 | 0 Stereo, 1 Ping-pong (input averaged to mono, bounced L, R, L...) |
 | `mix` | 0 to 1 | 0.35 | equal power; 0 is the dry input bit for bit, 1 has no dry |
 
 ## Behaviour
@@ -30,5 +30,6 @@ clock, feedback that holds instead of growing, a tone control inside the loop, a
 - Loop: tone filter, DC blocker (10 Hz), then a soft limiter (linear up to 1.0, ceiling 1.5) on the signal written to the line.
   Output stays within +-2 for a +-1 input at any setting.
 - Memory: 2 lines of ceil(2 s x rate) + 8 floats, `WS2_LARGE`, requested in `prepare`. No allocation in `process`/`reset`.
-- State: a version word only. Lines clear on `reset` and on `load_state`.
+- State: version 2 stores same-rate runtime state and both delay lines (1 MiB payload cap); legacy version 1 clears them. `reset` clears all history and transitions. State format and cap are unchanged by MOD-9.
+- Division is effective only after a patched clock has a measured period. Mode and clocked division follow effective channel-0 rows sample by sample, with existing 10 ms transitions; ABI constant rows retain the settled fast path.
 - The output is never flagged CONSTANT (tails make that rarely useful).
