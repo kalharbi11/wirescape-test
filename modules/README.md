@@ -26,7 +26,7 @@ One row per folder in `modules/`. Specs are in lab
 | `groove` | `sequencing.groove` | override | §4.6 batch A, ten flags | MOD-7-groove (#28) | 2 | T1 |
 | `host_keyboard` | `host.keyboard` | override | §4.6 octave modulation | MOD-7 (#30) | 2 | T1 |
 | `lfo` | `essentials.lfo` | override | §4.5 shapes, division, clock and reset | MOD-8 (#34) | 2 | T1 |
-| `delay` | `fx.delay` | override | §4.6 division/mode modulation | MOD-9 (#62) | 3 | draft |
+| `delay` | `fx.delay` | override | §4.6 division/mode modulation | MOD-9 (#62) | 3 | T1 |
 | reverb, quad_vca, chaos_lite, spectral | (existing) | override | §4.6 batch B | MOD-9 | 3 | planned |
 
 The harness (MOD-0, merged) is `tools/**`, not a module. Run `python tools/wstest.py t0 <folder>`
