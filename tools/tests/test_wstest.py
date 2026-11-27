@@ -412,9 +412,11 @@ class StudioOverlayTests(FakeLab):
         self.overlay = self.root / wstest.STUDIO_OVERLAY
         write(self.overlay / self.SRC, "// overlay\n")
         write(self.overlay / self.NEW, "// new widget\n")
-        self.base({self.SRC: wstest.sha256(b"// pinned\n"), self.NEW: None})
+        self.base()
 
-    def base(self, files):
+    def base(self, extra=None):
+        # hash the bytes on disk: write() translates newlines on Windows
+        files = {self.SRC: wstest.sha256((self.lab.dir / self.SRC).read_bytes()), self.NEW: None, **(extra or {})}
         write(self.overlay / "BASE.json", json.dumps({"lab_commit": self.lab.sha, "files": files}))
 
     def test_app_tree_gets_the_overlay_and_t0_tree_does_not(self):
@@ -458,7 +460,7 @@ class StudioOverlayTests(FakeLab):
             wstest.load_overlay(self.lab)
         (self.overlay / "apps/studio/src/extra.ts").unlink()
         write(self.overlay / "apps/desktop/main.ts", "x\n")
-        self.base({self.SRC: wstest.sha256(b"// pinned\n"), self.NEW: None, "apps/desktop/main.ts": None})
+        self.base({"apps/desktop/main.ts": None})
         with self.assertRaisesRegex(wstest.Refused, "outside apps/studio/src/"):
             wstest.load_overlay(self.lab)
 
