@@ -15,6 +15,7 @@ One row per folder in `modules/`. Specs are in lab
 | `random` | `essentials.random` | new | §4.2 (starts from lab `sdk/examples/random_source`) | MOD-3 (#7), MOD-3a (#13) | 1 | T1 |
 | `clock_divmult` | `essentials.clock_divmult` | new | §4.3 | MOD-4 (#14) | 1 | T1; SDK-1 (`beat_clock.h`), [LR-8](../LAB_REQUESTS.md) |
 | `macro` | `essentials.macro` | new | §3.1 | MOD-5 (#8) | 1 | T1 |
+| `guttr` | `guttr` | new | owner package (lab `docs/context/future_modules/guttur`) | — | — | draft |
 | `rhythm_lanes` | `sequencing.rhythm_lanes` | new | §4.4 (original design) | MOD-6 (#25) | 2 | T1 |
 | chord, midi_in, midi_to_cv, notes_to_cv, quantizer | (existing) | override | §4.6 batch A, flags only | MOD-7 | 2 | planned |
 | `cv_to_notes` | `essentials.cv_to_notes` | override | §4.6 batch A, legato modulation | MOD-7 (#29) | 2 | draft |

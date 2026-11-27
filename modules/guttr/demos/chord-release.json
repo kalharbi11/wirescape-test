@@ -1,0 +1,26 @@
+{
+  "SPDX-License-Identifier":"GPL-3.0-only","name":"GUTTR: a three-note chord (three throats each, 16-throat budget), held 1.4 s, then release and room tail to silence","rate":48000,"block":128,"seconds":6,"seed":7,"peak_limit":1.0,
+  "patch":{"format":"wirescape.native.patch","version":2,"settings":{"seed":7},"name":"Demo: GUTTR chord",
+    "modules":[
+      {"id":1,"module":"guttr","version":1,"parameters":{"vowel":0.35,"throats":3,"spread":0.6}},
+      {"id":2,"module":"essentials.mixer","version":2,"parameters":{"level_a":0.5,"level_b":0.5}},
+      {"id":3,"module":"essentials.output","version":2,"parameters":{}}
+    ],
+    "connections":[
+      {"kind":"signal","from":{"module":1,"port":"left"},"to":{"module":2,"port":"a"}},
+      {"kind":"signal","from":{"module":1,"port":"right"},"to":{"module":2,"port":"b"}},
+      {"kind":"signal","from":{"module":2,"port":"audio"},"to":{"module":3,"port":"audio"}}
+    ],
+    "outputs":[{"module":3,"port":"audio","bus_channel":0},{"module":3,"port":"audio","bus_channel":1}]
+  },
+  "events":[
+    {"frame":4800,"type":"noteOn","node":1,"key":48},
+    {"frame":4800,"type":"noteOn","node":1,"key":55},
+    {"frame":4900,"type":"noteOn","node":1,"key":64},
+    {"frame":72000,"type":"noteOff","node":1,"key":48},
+    {"frame":72000,"type":"noteOff","node":1,"key":55},
+    {"frame":72000,"type":"noteOff","node":1,"key":64}
+  ],
+  "windows":[{"kind":"silent","start":0,"end":4000},{"kind":"active","start":14400,"end":70000},{"kind":"silent","start":250000,"end":288000}],
+  "frequencies":[]
+}
