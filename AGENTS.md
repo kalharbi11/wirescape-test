@@ -51,6 +51,27 @@ keep both rows on conflict. Separate sessions use separate checkouts/build trees
 10. **No force-push and no history rewrite** on shared branches. The Pi runner (`wirescape-pi`) is not
     used from here.
 
+## Build and test on every builder run
+
+Use the connected GitHub tools to read the assigned issue and publish changes to its branch.
+Use the PR's GitHub Actions jobs for routine builds and tests. A clone or DNS failure in a
+chat shell does not block this route when the connected tools can read and write the repo.
+
+- On every start and resume, check the active PR's current head, T0/T1 runs and review status
+  before starting another task or handing back the claim. Use the Actions jobs and logs to
+  confirm which tests ran and record links and the tested SHA in the PR Result.
+- Open or update the PR to run T0. Mark it ready when eligible for T1. On a draft, the green
+  T1 summary can mean all platform and sanitizer jobs were skipped. Check those jobs directly.
+  For a regression or bit-identical requirement, check the log for the specific test or render.
+- If CI is pending, record the run links and the next action on resume. If it fails, use the
+  first failing step from the job log to make corrections on the same branch. Report whether
+  an earlier test-first commit was actually run before the fix.
+- For required checks outside these workflows, such as live Studio/Playwright screenshots or
+  an alternate lab pin, use a Codex workspace with the appropriate checkout, tools and exact
+  revisions. Record that evidence separately. Keep devices off and T2 owner-requested.
+- If connected GitHub tools are missing or an action is denied, report the exact unavailable
+  action or error. Use an authorized Codex checkout when one is available.
+
 ## Tasks, review and merge
 - **One task, one PR** against `main`; the branch name is free. Write the failing test first.
 - **CI.** Push to run T0. Mark the PR ready to run T1.
