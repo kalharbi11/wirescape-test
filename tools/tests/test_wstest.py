@@ -209,6 +209,49 @@ class HelperTests(unittest.TestCase):
         self.assertEqual([c["to"]["port"] for c in out["patch"]["connections"]], ["old_in"])
         self.assertEqual(case["patch"]["modules"][0]["parameters"]["new"], 2)
 
+    def _appended_fixture(self, root: Path, lab_json: dict | None, inventory: dict | None):
+        lab, folder = root / "lab", root / "override"
+        write(folder / "module.json", json.dumps({"parameters": {"a": 0, "delay": 1}, "inputs": {"gate": "signal"},
+                                                    "outputs": {"out": "signal", "extra": "signal"}}))
+        if lab_json is not None:
+            write(lab / "modules/m/module.json", json.dumps(lab_json))
+        if inventory is not None:
+            write(lab / "tools/mb1/descriptor_inventory.json", json.dumps(inventory))
+        return lab, folder
+
+    def test_appended_ids_from_lab_module_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lab, folder = self._appended_fixture(Path(tmp), {"parameters": {"a": 0}, "inputs": {"gate": "signal"},
+                                                             "outputs": {"out": "signal"}}, None)
+            self.assertEqual(wstest.appended_ids(lab, "m", "x.m", folder),
+                             {"parameters": {"delay"}, "inputs": set(), "outputs": {"extra"}})
+
+    def test_appended_ids_from_inventory_when_lab_module_json_is_gone(self):
+        # Lab MB2 removed module.json from some modules; the descriptor inventory holds their original IDs.
+        inventory = {"modules": [{"id": "x.other", "parameters": {"zzz": 0}, "inputs": {}, "outputs": {}},
+                                 {"id": "x.m", "parameters": {"a": 0}, "inputs": {"gate": "signal"},
+                                  "outputs": {"out": "signal"}}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            lab, folder = self._appended_fixture(Path(tmp), None, inventory)
+            self.assertEqual(wstest.appended_ids(lab, "m", "x.m", folder),
+                             {"parameters": {"delay"}, "inputs": set(), "outputs": {"extra"}})
+
+    def test_appended_ids_fail_closed(self):
+        inventory = {"modules": [{"id": "x.other", "parameters": {}, "inputs": {}, "outputs": {}}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            lab, folder = self._appended_fixture(Path(tmp), None, inventory)
+            with self.assertRaises(wstest.StepFailed):  # module absent from the inventory
+                wstest.appended_ids(lab, "m", "x.m", folder)
+        with tempfile.TemporaryDirectory() as tmp:
+            lab, folder = self._appended_fixture(Path(tmp), None, None)
+            with self.assertRaises(wstest.StepFailed):  # no lab source at all
+                wstest.appended_ids(lab, "m", "x.m", folder)
+        with tempfile.TemporaryDirectory() as tmp:
+            lab, folder = self._appended_fixture(Path(tmp), {"parameters": {}}, None)
+            (folder / "module.json").write_text("{not json", encoding="utf-8")
+            with self.assertRaises(wstest.StepFailed):  # unreadable override module.json
+                wstest.appended_ids(lab, "m", "x.m", folder)
+
     def test_fixture_expectations_name_steps(self):
         data = json.loads((wstest.ROOT / "tools/fixtures/expected.json").read_text())
         self.assertEqual(data["default"], {"gain": None, "nan_gain": "demos", "alloc_gain": "cpu_probe"})
