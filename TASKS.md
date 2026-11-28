@@ -37,6 +37,9 @@ Short lettered bundles (owner, 2026-11-27).
 | **A: workshop CI** | CI-app-smoke #23 (PR #61) → CI-windows-app #24 | `tools/**`, workflows, tools docs | #61 active; preserve its claim. G's pin PR #57 merged. One shared-tool writer. |
 | **I: batch B effects** | MOD-9-delay [#62](https://github.com/kalharbi11/wirescape-test/issues/62) → MOD-9-reverb [#63](https://github.com/kalharbi11/wirescape-test/issues/63) | `modules/delay/**`, then `modules/reverb/**`, own index rows | Unassigned. After MOD-7 completes (#40 and #47 merge). |
 | **J: batch B dynamics and sound** | MOD-9-quad_vca [#64](https://github.com/kalharbi11/wirescape-test/issues/64) → MOD-9-chaos_lite [#65](https://github.com/kalharbi11/wirescape-test/issues/65) → MOD-9-spectral [#66](https://github.com/kalharbi11/wirescape-test/issues/66) | Those three module folders and own index rows | Unassigned. Same MOD-7 gate; may run alongside I. |
+| **K: MB2 pin and stereo evidence** | [#78](https://github.com/kalharbi11/wirescape-test/issues/78) | `LAB_PIN` and pin integration evidence | Unassigned. Lab MB2 #725 and V2 #758 merged. Check the serial tooling queue before claiming. |
+
+**2026-11-28 release:** Chaos Lite [#73](https://github.com/kalharbi11/wirescape-test/pull/73) merged as `3cbf701`. Spectral [#66](https://github.com/kalharbi11/wirescape-test/issues/66) is the next task in J. Bundle K is a separate pin task. The active MIDI-to-CV render evidence remains in [#77](https://github.com/kalharbi11/wirescape-test/pull/77).
 
 **G details.**
 - The bump picks up lab MB1 (first MB1 pin, with the #18 compatibility), the #683 fixes for LR-9 and
