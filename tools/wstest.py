@@ -872,7 +872,7 @@ class Session:
         _, pristine_build = self.pristine()
         new_render = binary(self.build_dir, "wirescape_render", self.config)
         old_render = binary(pristine_build, "wirescape_render", self.config)
-        added = appended_ids(self.lab.dir / "modules" / m.name, m.folder)
+        added = appended_ids(self.lab.dir, m.name, m.module_id, m.folder)
         cases = [(f"demos/{p.name}", json.loads(p.read_text(encoding="utf-8")))
                  for p in sorted((m.folder / "demos").glob("*.json"))]
         for p in sorted((self.lab.dir / "tools/render/cases").glob("*.json")):
@@ -910,17 +910,37 @@ def validate_case(path: Path) -> dict:
     return case
 
 
-def appended_ids(lab_folder: Path, folder: Path) -> dict[str, set]:
-    """Parameter and port IDs the override adds, from module.json (pre-MB2 metadata)."""
-    added = {"parameters": set(), "inputs": set(), "outputs": set()}
+def appended_ids(lab_dir: Path, name: str, module_id: str, folder: Path) -> dict[str, set]:
+    """Parameter and port IDs the override adds to the lab original.
+
+    The original's IDs come from the lab's modules/<name>/module.json, or, once lab MB2 has removed it,
+    from the module's entry in the lab's descriptor inventory. The override's come from its own
+    module.json. Fails closed: with no readable source for either side the comparison is refused
+    instead of treating the override as adding nothing."""
+    keys = ("parameters", "inputs", "outputs")
     try:
-        old = json.loads((lab_folder / "module.json").read_text(encoding="utf-8"))
         new = json.loads((folder / "module.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return added
-    for key in added:
-        added[key] = set(new.get(key, {})) - set(old.get(key, {}))
-    return added
+    except (OSError, ValueError) as error:
+        raise StepFailed("identical", f"{folder.name}: override module.json unreadable: {error}")
+    old = None
+    lab_json = lab_dir / "modules" / name / "module.json"
+    if lab_json.is_file():
+        try:
+            old = json.loads(lab_json.read_text(encoding="utf-8"))
+        except ValueError as error:
+            raise StepFailed("identical", f"{name}: lab module.json unreadable: {error}")
+    else:
+        try:
+            inventory = json.loads((lab_dir / DESCRIPTOR_INVENTORY).read_text(encoding="utf-8"))
+            entries = [x for x in inventory["modules"] if x.get("id") == module_id]
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise StepFailed("identical", f"{name}: no lab module.json and {DESCRIPTOR_INVENTORY} "
+                                          f"unreadable: {error}")
+        if len(entries) != 1:
+            raise StepFailed("identical", f"{name}: no lab module.json and {module_id} has "
+                                          f"{len(entries)} entries in {DESCRIPTOR_INVENTORY}")
+        old = entries[0]
+    return {key: set(new.get(key, {})) - set(old.get(key, {})) for key in keys}
 
 
 def at_defaults(case: dict, module_id: str, added: dict[str, set]) -> dict:
