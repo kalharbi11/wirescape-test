@@ -802,10 +802,71 @@ void test_state_v1_loads() {
     for (size_t i = 0; i < size_t(11) * 4; ++i) v1_short.push_back(v1[i]);
     REQUIRE(y.load(v1_short) == WS2_INVALID);
 }
+
+void test_mod9_stepped_hop_streams() {
+    const auto* d = ws::Module<Spectral>::descriptor();
+    REQUIRE(d->param_count == 16 && d->input_count == 2 && d->output_count == 1);
+    constexpr uint32_t step = WS2_STEPPED | WS2_AUTOMATABLE;
+    const auto& size = d->params[spectral::P_SIZE];
+    REQUIRE(size.flags == step);
+    REQUIRE(size.minimum == 0 && size.maximum == 3 && size.initial == 2 && size.step == 1);
+    for (uint32_t slot : {uint32_t(spectral::P_CURVE), uint32_t(spectral::P_PITCH), uint32_t(spectral::P_PHASE)}) {
+        const auto& p = d->params[slot];
+        REQUIRE(p.flags == (step | WS2_MODULATABLE));
+        REQUIRE(p.minimum == 0 && p.maximum == 1 && p.initial == 0 && p.step == 1);
+    }
+    for (uint32_t channels : {1u, 16u}) {
+        for (uint32_t slot : {uint32_t(spectral::P_CURVE), uint32_t(spectral::P_PITCH), uint32_t(spectral::P_PHASE)}) {
+            Rig streamed, scalar, baseline;
+            for (Rig* r : {&streamed, &scalar, &baseline}) {
+                r->ctx.channels = channels;
+                r->set(spectral::P_SIZE, 0).set(spectral::P_MODE,
+                    slot == spectral::P_PHASE ? spectral::Interleave : spectral::Morph);
+            }
+            constexpr uint32_t hop = 128, n = 8192;
+            const auto a = test_a(n, 48000), b = test_b(n, 48000);
+            bool changed = false;
+            // Split at awkward block sizes; only the sample at each hop boundary matters.
+            // Use the same hop sequence for the constant oracle, but give the streamed
+            // control the opposite value at every non-hop sample.
+            for (uint32_t pos = 0; pos < n;) {
+                const uint32_t len = std::min({17u, hop - pos % hop, n - pos});
+                const float value = float((pos / hop / 4) % 2);
+                float effective[17]{};
+                for (uint32_t j = 0; j < len; ++j)
+                    effective[j] = ((pos + j) % hop == 0) ? value : 1.f - value;
+                const float* row = effective;
+                streamed.params[slot] = {sizeof(ws2_signal), &row, 1, 0};
+                scalar.set(slot, value);
+                const std::vector<float> aa(a.begin() + pos, a.begin() + pos + len);
+                const std::vector<float> bb(b.begin() + pos, b.begin() + pos + len);
+                const auto x = streamed.run(aa, bb, len);
+                const auto y = scalar.run(aa, bb, len);
+                const auto z = baseline.run(aa, bb, len);
+                for (uint32_t j = 0; j < len; ++j) {
+                    REQUIRE(same_element(x[j], y[j]));
+                    changed = changed || !same_element(x[j], z[j]);
+                }
+                pos += len;
+            }
+            REQUIRE(changed);
+            const Bytes saved = streamed.save(), expected = scalar.save();
+            REQUIRE(saved.size() == expected.size());
+            for (size_t j = 0; j < saved.size(); ++j) REQUIRE(saved[j] == expected[j]);
+            REQUIRE(baseline.load(saved) == WS2_OK);
+            const Bytes loaded = baseline.save();
+            REQUIRE(loaded.size() == saved.size());
+            for (size_t j = 0; j < saved.size(); ++j) REQUIRE(loaded[j] == saved[j]);
+            REQUIRE(streamed.latency() == 512 && scalar.latency() == 512 && baseline.latency() == 512);
+        }
+    }
+}
+
 } // namespace
 
 int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0); // measurements stay visible if a check aborts
+    test_mod9_stepped_hop_streams();
     test_approximations();
     test_fft_matches_dft();
     test_frame_matrix_every_mode();
