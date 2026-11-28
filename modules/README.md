@@ -17,7 +17,7 @@ One row per folder in `modules/`. Specs are in lab
 | `macro` | `essentials.macro` | new | §3.1 | MOD-5 (#8) | 1 | T1 |
 | `guttr` | `guttr` | new | owner package (lab `docs/context/future_modules/guttur`) | GUTTR (#38) | — | T1 |
 | `rhythm_lanes` | `sequencing.rhythm_lanes` | new | §4.4 (original design) | MOD-6 (#25) | 2 | T1 |
-| `midi_to_cv` | `midi.to_cv` | override | §4.6 batch A, performance modulation | MOD-7 (#31) | 2 | T1; active offline demo awaits LR-13 |
+| `midi_to_cv` | `midi.to_cv` | override | §4.6 batch A, performance modulation | MOD-7 (#31) | 2 | T1; active UMP and idle demos (#76) |
 | `chord` | `essentials.chord` | override | §4.6 enable/shift modulation | MOD-7 (#26) | 2 | T1 |
 | `notes_to_cv` | `essentials.notes_to_cv` | override | §4.6 batch A, setParam-only voices audit | MOD-7 (#33) | 2 | T1 |
 | `midi_in` | `midi.in` | override | §4.6 batch A, setParam-only filter audit | MOD-7 (#32) | 2 | T1 |
@@ -29,7 +29,8 @@ One row per folder in `modules/`. Specs are in lab
 | `delay` | `fx.delay` | override | §4.6 division/mode modulation | MOD-9 (#62) | 3 | T1 |
 | `quad_vca` | `essentials.quad_vca` | override | §4.6 batch B, four mode flags | MOD-9 (#64) | 3 | T1 |
 | `reverb` | `fx.reverb` | override | §4.6 freeze modulation | MOD-9 (#63) | 3 | T1 |
-| chaos_lite, spectral | (existing) | override | §4.6 batch B | MOD-9 | 3 | planned |
+| `chaos_lite` | `essentials.chaos_lite` | override | §4.6 batch B, five stepped flags | MOD-9 (#65) | 3 | T1 |
+| spectral | (existing) | override | §4.6 batch B | MOD-9 | 3 | planned |
 
 The harness (MOD-0, merged) is `tools/**`, not a module. Run `python tools/wstest.py t0 <folder>`
 (see [tools/README.md](../tools/README.md)); its self-test fixtures live in `tools/fixtures/`.

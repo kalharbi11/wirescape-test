@@ -32,15 +32,28 @@ controls and checks exact flags, rejection of the six excluded cables, 1 and
 16 voices, event and idle paths, per-sample pitch, raw bend, and block-boundary
 pedal release. Existing state/allocator tests remain unchanged.
 
+## LR-13 active offline regression (#76)
+
+Lab PR [#736](https://github.com/kalharbi11/wirescape-lab/pull/736) added raw UMP
+renderer ingress; workshop #75 pinned `74f4a3a3260e19d5377a1aa906cc55de400edb99`.
+The original idle case is retained byte-for-byte. The new active case reuses the
+same VCO/ADSR/VCA/output chain and default MIDI-to-CV parameters: MIDI 1 C4,
+maximum positive bend (+2 semitones), center reset, note off, MIDI 2 A4 and note off.
+Four active frequency windows and three silent windows witness audible output,
+bend/reset and release; both cases must remain byte-identical to the pristine pin.
+The evidence-first commit `f94d022` passed Linux x64 native tests, both demos,
+zero allocation/fault CPU probe and two-case identity ([T0 job](https://github.com/kalharbi11/wirescape-test/actions/runs/46114629833/job/140885602323)).
+The follow-up extends the window checks to directly witness the center reset;
+final-head T0/T1 and independent review are required. No DSP, flags, API,
+state or tooling changes; no artificial red-stage claim.
+
 ## Limitations
 
-[LR-13](../../LAB_REQUESTS.md), [lab #722](https://github.com/kalharbi11/wirescape-lab/issues/722): the pinned
-renderer script cannot inject raw UMP (only noteOn, noteOff, gate, setParam).
-The idle demo verifies silence and unmodulated identity only; it is not evidence
-of an audible MIDI note or active behavior. Device-free C++ tests exercise
-synthetic UMP through MIDI In and MIDI to CV, without a shared tool change.
-No lab edits; active offline render evidence remains unavailable until lab
-support is approved. No gate is weakened.
+[LR-13](../../LAB_REQUESTS.md), [lab #722](https://github.com/kalharbi11/wirescape-lab/issues/722):
+raw UMP was unavailable at the former pin; the renderer fix is now pinned.
+The active demo checks default audible behavior, not every MIDI protocol message,
+modulation or all polyphonic paths. Device-free C++ graph tests cover synthetic
+UMP through MIDI In and MIDI to CV and performance modulation. No devices or lab edits.
 
 [LR-12](../../LAB_REQUESTS.md): historical C4 failure on the old pin: on the untouched descriptor, test-first T0 at decafcf
 failed before compilation: `param[2] range/initial invalid: steal_policy`.
@@ -52,4 +65,4 @@ The new regression was not executed on the old pin. Lab PR [#724](https://github
 merged the C4 singleton-range fix at `3d3db7a64090682a62f220d73baef49709048c87`.
 The original DSP, module.cpp, module.json, tests and trigger support are unchanged
 between the old pin and this candidate. PIN-next #57 merged at workshop `ed24cc8`; the singleton fix is now pinned.
-On new-pin pretest head `75c0485`, all three release platforms passed C4, abi2_midi_to_cv_tests, CPU probe (zero allocations and faults), and byte-identical idle render; ASan/UBSan passed tests and demo. Final integration requires the same gates on the new head before #31 merges. LR-13 remains open independently; the idle demo is intentional.
+On new-pin pretest head `75c0485`, all three release platforms passed C4, abi2_midi_to_cv_tests, CPU probe (zero allocations and faults), and byte-identical idle render; ASan/UBSan passed tests and demo. Final integration head `3dbbd25` passed the same gates and #47 merged at `0bbabb6`. LR-13 was a separate renderer limitation, now addressed by the pinned renderer and the active-demo follow-up above.
