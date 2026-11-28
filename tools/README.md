@@ -50,6 +50,19 @@ overrides add nothing). Older pins continue to use their original generator. The
 `abi2_wire_describe_equality` gates are unchanged. The descriptor build is isolated from the full build,
 and no binary from another scratch or the host is used.
 
+### MB2 generated native projection
+
+When the pin tracks `tools/mb1/descriptor_inventory.json` (lab #725), the same
+unmodified generator also regenerates that file. The harness independently projects
+the fresh scratch `wire-describe` rows onto the seven native identity/interface fields
+(`id`, `name`, `abi_version`, `version`, `inputs`, `outputs`, `parameters`),
+sorts by ID, and computes the pin generator's canonical UTF-8 JSON bytes.
+Missing, stale, corrupt or noncanonical projection output refuses registration.
+Only the exact verified bytes are added to the scratch verification map; the
+pinned checkout is untouched, and every other unapproved file change remains
+a failure. Pre-MB2 pins without the tracked projection keep the previous allowlist.
+The Studio overlay stays app-tree-only.
+
 ## Fast offline listening preview
 
 ```sh
