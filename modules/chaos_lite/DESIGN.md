@@ -53,7 +53,9 @@ No constant flag is set on running audio, including silent capped channels.
 
 ## MOD-9 read-site audit
 
-Override base: lab `3d3db7a64090682a62f220d73baef49709048c87` (LAB_PIN). The shared
+Override source byte-copy base: lab `3d3db7a64090682a62f220d73baef49709048c87`.
+Current validation pin: `74f4a3a3260e19d5377a1aa906cc55de400edb99` (workshop #75).
+The lab comparison shows no changes to module source between these pins. The shared
 `stepped` mask in dsp.h is the sole production change; all five slots retain
 STEPPED and AUTOMATABLE and gain MODULATABLE. No audio-rate/per-voice capability
 flags are added. The existing effective stream is read per sample for each active voice.
