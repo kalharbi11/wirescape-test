@@ -8,5 +8,10 @@
     "apps/studio/src/panels/widgets/Slider.ts": null,
     "apps/studio/src/styles/app.css": "c6a0e9d541b3266634d64851ab2fa50c3fcbbbd44e3702321c082d98644d70cb",
     "apps/studio/src/styles/controls.css": "68d0223884e2243327d715c9fb3ec6721aea83c148ba4e5f75eb413e69303650"
+  },
+  "variants": {
+    "apps/studio/src/canvas/ModuleCard.ts": [
+      "83a1c03f47eef74d085cc0a44aad59b62d9ef146270359b63877b1ca796784d9"
+    ]
   }
 }
