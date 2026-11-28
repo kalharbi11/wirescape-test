@@ -37,5 +37,10 @@ Bend range and apply-bend are evaluated per sample, and neither changes the
 raw bend output. The other six controls remain setParam-only.
 
 `last_note` is mono raw held pitch; `trig` is a poly 1 ms attack pulse.
-The device-free C++ tests inject UMP; the offline demo checks only no-ingress
-silence and identity because the pinned renderer cannot inject MIDI UMP.
+The device-free C++ tests inject UMP. `demos/idle-identity.json` retains the
+no-ingress silence and identity check. With lab #736 pinned by #75,
+`demos/active-ump.json` exercises raw MIDI 1 C4, +2 semitone pitch bend and
+return to C4, then MIDI 2 A4, with note-off silence and frequency windows.
+Both cases require byte-identical unmodulated renders against the lab pin.
+This demo covers the default converter path; the native tests cover modulation,
+voice allocation and state.

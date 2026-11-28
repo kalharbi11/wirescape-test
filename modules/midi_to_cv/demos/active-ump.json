@@ -1,0 +1,239 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "MIDI to CV active MIDI 1 and MIDI 2 UMP",
+  "rate": 48000,
+  "block": 128,
+  "seconds": 2,
+  "seed": 7,
+  "peak_limit": 1.2,
+  "patch": {
+    "format": "wirescape.native.patch",
+    "version": 2,
+    "settings": {
+      "seed": 7,
+      "feedback_block": 16
+    },
+    "name": "Evidence: raw UMP note, bend and release",
+    "modules": [
+      {
+        "id": 1,
+        "module": "essentials.vco",
+        "version": 2,
+        "parameters": {
+          "frequency": 220
+        }
+      },
+      {
+        "id": 2,
+        "module": "essentials.adsr",
+        "version": 2,
+        "parameters": {
+          "attack": 0.005,
+          "decay": 0.04,
+          "sustain": 0.8,
+          "release": 0.05
+        }
+      },
+      {
+        "id": 3,
+        "module": "essentials.vca",
+        "version": 2,
+        "parameters": {
+          "gain": 0.6
+        }
+      },
+      {
+        "id": 4,
+        "module": "essentials.output",
+        "version": 2,
+        "parameters": {}
+      },
+      {
+        "id": 5,
+        "module": "midi.to_cv",
+        "version": 1,
+        "parameters": {}
+      }
+    ],
+    "connections": [
+      {
+        "kind": "signal",
+        "from": {
+          "module": 5,
+          "port": "pitch"
+        },
+        "to": {
+          "module": 1,
+          "port": "pitch"
+        }
+      },
+      {
+        "kind": "signal",
+        "from": {
+          "module": 5,
+          "port": "gate"
+        },
+        "to": {
+          "module": 2,
+          "port": "gate"
+        }
+      },
+      {
+        "kind": "signal",
+        "from": {
+          "module": 1,
+          "port": "audio"
+        },
+        "to": {
+          "module": 3,
+          "port": "audio"
+        }
+      },
+      {
+        "kind": "signal",
+        "from": {
+          "module": 2,
+          "port": "envelope"
+        },
+        "to": {
+          "module": 3,
+          "port": "gain_cv"
+        }
+      },
+      {
+        "kind": "signal",
+        "from": {
+          "module": 3,
+          "port": "audio"
+        },
+        "to": {
+          "module": 4,
+          "port": "audio"
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "module": 4,
+        "port": "audio",
+        "bus_channel": 0
+      },
+      {
+        "module": 4,
+        "port": "audio",
+        "bus_channel": 1
+      }
+    ]
+  },
+  "events": [
+    {
+      "frame": 4800,
+      "node": 5,
+      "type": "midi",
+      "words": [
+        546323556
+      ]
+    },
+    {
+      "frame": 19200,
+      "node": 5,
+      "type": "midi",
+      "words": [
+        551583615
+      ]
+    },
+    {
+      "frame": 30000,
+      "node": 5,
+      "type": "midi",
+      "words": [
+        551551040
+      ]
+    },
+    {
+      "frame": 38400,
+      "node": 5,
+      "type": "midi",
+      "words": [
+        545274880
+      ]
+    },
+    {
+      "frame": 52800,
+      "node": 5,
+      "type": "midi",
+      "words": [
+        1083196672,
+        4294901760
+      ]
+    },
+    {
+      "frame": 81600,
+      "node": 5,
+      "type": "midi",
+      "words": [
+        1082148096,
+        0
+      ]
+    }
+  ],
+  "windows": [
+    {
+      "kind": "silent",
+      "start": 0,
+      "end": 4000
+    },
+    {
+      "kind": "active",
+      "start": 9600,
+      "end": 18000
+    },
+    {
+      "kind": "active",
+      "start": 21000,
+      "end": 29000
+    },
+    {
+      "kind": "active",
+      "start": 31000,
+      "end": 38000
+    },
+    {
+      "kind": "silent",
+      "start": 45600,
+      "end": 52000
+    },
+    {
+      "kind": "active",
+      "start": 57600,
+      "end": 80000
+    },
+    {
+      "kind": "silent",
+      "start": 91200,
+      "end": 96000
+    }
+  ],
+  "frequencies": [
+    {
+      "start": 9600,
+      "end": 18000,
+      "hz": 261.6255653
+    },
+    {
+      "start": 21000,
+      "end": 29000,
+      "hz": 293.6647679
+    },
+    {
+      "start": 31000,
+      "end": 38000,
+      "hz": 261.6255653
+    },
+    {
+      "start": 57600,
+      "end": 80000,
+      "hz": 440
+    }
+  ]
+}
