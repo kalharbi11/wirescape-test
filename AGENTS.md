@@ -96,16 +96,17 @@ chat shell does not block this route when the connected tools can read and write
   the session or the PR. **T2 is no longer a promotion precondition** (lab 0026 §13.2): a promotion needs
   T0 and T1 green at the named commit here, then the lab promotion PR's own CI and demo sweep.
 - **`presentation.json`.** Every new module, and every override that changes ports or parameters,
-  ships `modules/<name>/presentation.json` (0024 §9.1; README "Test tiers"). At promotion it is the one
-  file not byte-copied: its object goes into the lab sidecar.
+  ships `modules/<name>/presentation.json` (0024 §9.1; README "Test tiers"). After lab PRES (#786) it is
+  byte-copied at promotion like `panel.json`; `module.json` is the one file left out (lab M3 r2.4).
 - **Promotion to the lab** is lab work (lab track M), as a byte copy of a named commit that is T0 and T1
   green at a pin at or after lab MB2 `027db95` (0024 §2.7 as amended by lab 0026 §13.2). After it merges,
-  the next pin bump deletes the folder here. `modules/README.md` names the promotable commit.
+  the next pin bump deletes the folder here. The lab PROMO issue names the commit.
 
 ## Experiments (owner, 2026-11-28; lab 0026 §14)
 `experiments/<name>/` holds work that is too experimental for the lab: UI flexibility, a Daisy build, a
 patch compiler, a plugin build. **An experiment answers a question; it does not ship.**
-- **One module source.** It compiles `modules/<name>/` and the pinned lab SDK unmodified. Anything it needs
+- **One module source.** It compiles the pinned lab's or this repo's `modules/<name>/` and the pinned lab
+  SDK unmodified. Anything it needs
   changed there is a `LAB_REQUESTS.md` row, never a private fork.
 - **No design authority.** Lab 0013 (portability) and 0015 (panels) stay the designs. Findings may show a
   design is wrong; the lab Architect then changes it.
