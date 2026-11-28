@@ -51,7 +51,9 @@ copy `build/app-<sha7>/` after it is prepared and before Studio is served or bui
 - **Pin bump:** `tools/studio/BASE.json` holds the SHA-256 of each pinned file the copies replace. If a bump
   changes one, `ui`, `app` and `shot` refuse and name the file. Re-apply the overlay's edits on the new file,
   then run `studio-diff --update-base` (rewrites `BASE.json` from the new pin and regenerates `lab.patch`).
-  A pin bump that touches none of them needs nothing.
+  A pin bump that touches none of them needs nothing. During the MB2 transition, reviewed exact-digest
+  alternatives in `tools/studio/variants/` preserve both supported bases; edit the selected copy and run
+  `studio-diff` for that pin. `--update-base` refuses while alternatives exist (see the overlay README).
 
 ## `panel.json`
 Optional, one per module, next to `presentation.json`. It is Studio's `PanelOverride` plus the SPDX key.
