@@ -867,9 +867,27 @@ void test_mod9_stepped_hop_streams() {
             for (size_t j = 0; j < saved.size(); ++j) REQUIRE(saved[j] == expected[j]);
             REQUIRE(baseline.load(saved) == WS2_OK);
             const Bytes loaded = baseline.save();
-            REQUIRE(loaded.size() == saved.size());
-            for (size_t j = 0; j < saved.size(); ++j) REQUIRE(loaded[j] == saved[j]);
+            // Pinned v2 save_state writes pending_ even when drain_ == 0.
+            // The immediate size change leaves the old default there; load_state
+            // deliberately canonicalizes that inactive word to the active size.
+            // Require every other byte to survive, and the exact canonical word.
+            constexpr size_t size_word = 5 * 4, drain_word = 6 * 4, pending_word = 7 * 4;
+            REQUIRE(saved.size() == 13 * 4 && loaded.size() == saved.size());
+            REQUIRE(saved[size_word] == 0 && saved[pending_word] == spectral::kDefaultSize);
+            for (size_t j = 0; j < 4; ++j) {
+                REQUIRE(saved[drain_word + j] == 0);
+                REQUIRE(loaded[pending_word + j] == saved[size_word + j]);
+            }
+            for (size_t j = 0; j < saved.size(); ++j)
+                if (j < pending_word || j >= pending_word + 4) REQUIRE(loaded[j] == saved[j]);
             REQUIRE(streamed.latency() == 512 && scalar.latency() == 512 && baseline.latency() == 512);
+            REQUIRE(scalar.load(loaded) == WS2_OK);
+            scalar.set(slot, 1.f);
+            baseline.set(slot, 1.f);
+            const auto aa = test_a(1537, 48000), bb = test_b(1537, 48000);
+            const auto restored_a = scalar.run(aa, bb, 17), restored_b = baseline.run(aa, bb, 17);
+            for (size_t j = 0; j < restored_a.size(); ++j)
+                REQUIRE(same_element(restored_a[j], restored_b[j]));
         }
     }
 }

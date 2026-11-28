@@ -70,7 +70,7 @@ Override byte-copy base: lab `74f4a3a3260e19d5377a1aa906cc55de400edb99` (LAB_PIN
 
 The stepped helper rounds and clamps the value at block offset i; curve/pitch/phase are sampled only at an active analysis hop (silent frames skip Controls), including a mode crossfade. No new audio-rate or per-voice flags. Existing mode/chunk_a/chunk_b/bands retain kStepMod. No new state; existing double rate_ and voc_span_ hold sample rate and prepare-time log span for precision; the FFT/window/phase/OLA buffers remain float, allocated via Setup::alloc(WS2_LARGE) in prepare. Fixed mono output and SUM inputs unchanged. Atomic latency is the existing relaxed load/store; no locks or memory allocation introduced. State v2 saves schedule/RNG, v1 accepted, history cleared on load.
 
-Tests cover exact flags/ranges/defaults, off-hop opposing samples in 17-frame blocks against a scalar hop oracle, output change from unmodulated control, 1/16-channel context (mono output), finite output, callback allocation guards, state-byte round-trip, latency, graph acceptance of three CV targets and rejection of size. Original frame/rate/state/size regressions remain.
+Tests cover exact flags/ranges/defaults, off-hop opposing samples in 17-frame blocks against a scalar hop oracle, output change from unmodulated control, 1/16-channel context (mono output), finite output, callback allocation guards, state-byte round-trip (exact except for the existing inactive pending-size normalization), restored output equality between independent loads, latency, graph acceptance of three CV targets and rejection of size. Original frame/rate/state/size regressions remain.
 
 ## Limitations
 
