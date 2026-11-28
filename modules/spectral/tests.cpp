@@ -2,6 +2,7 @@
 #include "../../sdk/examples/test_support.h"
 #include "../../tests/native/abi2/allocation_watch.h"
 #include "dsp.h"
+#include "../../engine/engine2.h"
 #include <cstdio>
 #include <vector>
 
@@ -826,22 +827,33 @@ void test_mod9_stepped_hop_streams() {
             constexpr uint32_t hop = 128, n = 8192;
             const auto a = test_a(n, 48000), b = test_b(n, 48000);
             bool changed = false;
-            // Split at awkward block sizes; only the sample at each hop boundary matters.
-            // Use the same hop sequence for the constant oracle, but give the streamed
-            // control the opposite value at every non-hop sample.
+            // Stream in 17-frame blocks, so hop boundaries fall inside callbacks.
+            // Every non-hop sample carries the opposite value. The constant oracle
+            // splits only where the hop control could change.
             for (uint32_t pos = 0; pos < n;) {
-                const uint32_t len = std::min({17u, hop - pos % hop, n - pos});
-                const float value = float((pos / hop / 4) % 2);
+                const uint32_t len = std::min(17u, n - pos);
                 float effective[17]{};
-                for (uint32_t j = 0; j < len; ++j)
-                    effective[j] = ((pos + j) % hop == 0) ? value : 1.f - value;
+                for (uint32_t j = 0; j < len; ++j) {
+                    const uint32_t frame = pos + j;
+                    const float value = float((frame / hop / 4) % 2);
+                    effective[j] = frame % hop == 0 ? value : 1.f - value;
+                }
                 const float* row = effective;
                 streamed.params[slot] = {sizeof(ws2_signal), &row, 1, 0};
-                scalar.set(slot, value);
                 const std::vector<float> aa(a.begin() + pos, a.begin() + pos + len);
                 const std::vector<float> bb(b.begin() + pos, b.begin() + pos + len);
                 const auto x = streamed.run(aa, bb, len);
-                const auto y = scalar.run(aa, bb, len);
+                std::vector<float> y;
+                for (uint32_t j = 0; j < len;) {
+                    const uint32_t frame = pos + j;
+                    const uint32_t count = std::min(len - j, hop - frame % hop);
+                    scalar.set(slot, float((frame / hop / 4) % 2));
+                    const std::vector<float> sa(aa.begin() + j, aa.begin() + j + count);
+                    const std::vector<float> sb(bb.begin() + j, bb.begin() + j + count);
+                    const auto part = scalar.run(sa, sb, count);
+                    y.insert(y.end(), part.begin(), part.end());
+                    j += count;
+                }
                 const auto z = baseline.run(aa, bb, len);
                 for (uint32_t j = 0; j < len; ++j) {
                     REQUIRE(same_element(x[j], y[j]));
@@ -862,11 +874,79 @@ void test_mod9_stepped_hop_streams() {
     }
 }
 
+
+struct Mod9Source {
+    static constexpr ws::Info info{"test.spectral_mod9_source", "Spectral test source", 1};
+    static constexpr std::array<ws2_port, 0> inputs{};
+    static constexpr std::array outputs{ws::port("a", "A", WS2_AUDIO),
+                                        ws::port("b", "B", WS2_AUDIO),
+                                        ws::port("cv", "CV", WS2_CV_UNI)};
+    static constexpr std::array<ws2_param, 0> params{};
+    void prepare(const ws::Setup&) {}
+    void reset() {}
+    void process(ws::Block& b) {
+        for (uint32_t p = 0; p < 3; ++p) {
+            b.out(p).set_channels(1);
+            b.out(p).mark_constant(false);
+        }
+        for (uint32_t i = 0; i < b.frames(); ++i) {
+            const uint64_t frame = b.frame_position() + i;
+            const double t = double(frame) / b.sample_rate();
+            b.out(0).ch(0)[i] = float(.4 * std::sin(kTwoPi * 220 * t) + .15 * std::sin(kTwoPi * 1310 * t));
+            b.out(1).ch(0)[i] = float(.3 * std::sin(kTwoPi * 523.25 * t) + .1 * std::sin(kTwoPi * 880 * t));
+            b.out(2).ch(0)[i] = frame >= 2049 ? 1.f : 0.f;
+        }
+    }
+};
+void test_mod9_engine_cables() {
+    using namespace wirescape::engine2;
+    for (uint32_t slot : {uint32_t(spectral::P_CURVE), uint32_t(spectral::P_PITCH), uint32_t(spectral::P_PHASE)}) {
+        Config cfg; cfg.max_block = 128; cfg.seed = 7;
+        Engine modulated(cfg), plain(cfg);
+        for (Engine* e : {&modulated, &plain}) {
+            REQUIRE(e->add_node(1, ws::Module<Mod9Source>::descriptor()));
+            REQUIRE(e->add_node(2, ws::Module<Spectral>::descriptor()));
+            REQUIRE(e->set_parameter(2, spectral::P_SIZE, 0.f));
+            REQUIRE(e->set_parameter(2, spectral::P_MODE,
+                slot == spectral::P_PHASE ? spectral::Interleave : spectral::Morph));
+            REQUIRE(e->connect(1, 0, 2, 0) && e->connect(1, 1, 2, 1));
+            REQUIRE(e->output(2, 0, 0));
+        }
+        REQUIRE(modulated.modulate(1, 2, 2, slot, 1.f));
+        REQUIRE(modulated.prepare() && plain.prepare());
+        float a[128]{}, b[128]{};
+        float* ar[]{a}; float* br[]{b};
+        bool changed = false;
+        for (uint32_t block = 0; block < 64; ++block) {
+            {
+                allocation_watch::Scope watch;
+                REQUIRE(modulated.render(ar, 1, 128) == WS2_OK);
+                REQUIRE(plain.render(br, 1, 128) == WS2_OK);
+                REQUIRE(watch.allocations() == 0);
+            }
+            for (uint32_t i = 0; i < 128; ++i) {
+                REQUIRE(std::isfinite(a[i]) && std::isfinite(b[i]));
+                if (block < 16) REQUIRE(same_element(a[i], b[i]));
+                else changed = changed || !same_element(a[i], b[i]);
+            }
+        }
+        REQUIRE(changed);
+        REQUIRE(modulated.meter().faults == 0 && plain.meter().faults == 0);
+    }
+    // A structurally excluded parameter must reject a valid CV cable at the graph API.
+    Engine e;
+    REQUIRE(e.add_node(1, ws::Module<Mod9Source>::descriptor()));
+    REQUIRE(e.add_node(2, ws::Module<Spectral>::descriptor()));
+    REQUIRE(e.set_parameter(2, spectral::P_SIZE, 0.f));
+    REQUIRE(!e.modulate(1, 2, 2, spectral::P_SIZE, 1.f));
+}
+
 } // namespace
 
 int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0); // measurements stay visible if a check aborts
     test_mod9_stepped_hop_streams();
+    test_mod9_engine_cables();
     test_approximations();
     test_fft_matches_dft();
     test_frame_matrix_every_mode();

@@ -30,7 +30,7 @@ One row per folder in `modules/`. Specs are in lab
 | `quad_vca` | `essentials.quad_vca` | override | §4.6 batch B, four mode flags | MOD-9 (#64) | 3 | T1 |
 | `reverb` | `fx.reverb` | override | §4.6 freeze modulation | MOD-9 (#63) | 3 | T1 |
 | `chaos_lite` | `essentials.chaos_lite` | override | §4.6 batch B, five stepped flags | MOD-9 (#65) | 3 | T1 |
-| spectral | (existing) | override | §4.6 batch B | MOD-9 | 3 | planned |
+| `spectral` | `sound.spectral` | override | §4.6 batch B, three hop switches; structural size excluded | MOD-9 (#66) | 3 | T1 |
 
 The harness (MOD-0, merged) is `tools/**`, not a module. Run `python tools/wstest.py t0 <folder>`
 (see [tools/README.md](../tools/README.md)); its self-test fixtures live in `tools/fixtures/`.

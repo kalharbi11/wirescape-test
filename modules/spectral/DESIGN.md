@@ -56,3 +56,23 @@ Interleave: the prototype centres frame f on f·hop, while the module's frame en
 ## Not done / follow-ups
 - Engine re-query of `latency_frames()` after a parameter-driven change (T2 engine work, follow-up issue).
 - If Pi evidence shows the per-hop burst is too high at 96 kHz/4096, spread the frame over the hop at the cost of one extra hop of latency.
+
+## MOD-9 audit
+
+Override byte-copy base: lab `74f4a3a3260e19d5377a1aa906cc55de400edb99` (LAB_PIN). Only three descriptor entries in dsp.h change in production, from kStep to kStepMod. No read-site, DSP, state, parameter/port ordering, ranges or defaults change.
+
+| Pinned stepped-only ID | Effective read site | Decision |
+|---|---|---|
+| size (1) | tick: stepped(P_SIZE,i), then set_size or pending/drain | Retain STEPPED\|AUTOMATABLE only. Structural FFT length, hop/bin counts, bin-state reset, old OLA drain and atomic latency change. Storage is preallocated, but the structural exception applies. |
+| curve (3) | tick Controls, morph magnitude branch | Add MODULATABLE. Geometric versus linear arithmetic over existing magnitude rows. |
+| pitch (4) | tick Controls, morph rotation branch | Add MODULATABLE. Existing fixed phasor arrays, bounded blend math versus louder-bin phase advance. |
+| phase (11) | tick Controls, interleave phase branch | Add MODULATABLE. Source phase versus existing preallocated running phasors; no new reset, crossfade or allocation. |
+
+The stepped helper rounds and clamps the value at block offset i; curve/pitch/phase are sampled only at an active analysis hop (silent frames skip Controls), including a mode crossfade. No new audio-rate or per-voice flags. Existing mode/chunk_a/chunk_b/bands retain kStepMod. No new state; existing double rate_ and voc_span_ hold sample rate and prepare-time log span for precision; the FFT/window/phase/OLA buffers remain float, allocated via Setup::alloc(WS2_LARGE) in prepare. Fixed mono output and SUM inputs unchanged. Atomic latency is the existing relaxed load/store; no locks or memory allocation introduced. State v2 saves schedule/RNG, v1 accepted, history cleared on load.
+
+Tests cover exact flags/ranges/defaults, off-hop opposing samples in 17-frame blocks against a scalar hop oracle, output change from unmodulated control, 1/16-channel context (mono output), finite output, callback allocation guards, state-byte round-trip, latency, graph acceptance of three CV targets and rejection of size. Original frame/rate/state/size regressions remain.
+
+## Limitations
+
+- Structural size changes intentionally stay setParam-only. Existing drain and latency contract retained. No new lab dependency or LR row identified.
+- Offline demo is mono and duplicates to the render buses (compatible with the current pin's equal-channel evidence rule, [LR-7](../../LAB_REQUESTS.md)); no claim of independent stereo rendering. Hosted probe is diagnostic, not target hardware active FFT cost or owner listening acceptance.
