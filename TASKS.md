@@ -37,7 +37,18 @@ Short lettered bundles (owner, 2026-11-27).
 | **A: workshop CI** | CI-app-smoke #23 (PR #61) → CI-windows-app #24 | `tools/**`, workflows, tools docs | #61 active; preserve its claim. G's pin PR #57 merged. One shared-tool writer. |
 | **I: batch B effects** | MOD-9-delay [#62](https://github.com/kalharbi11/wirescape-test/issues/62) → MOD-9-reverb [#63](https://github.com/kalharbi11/wirescape-test/issues/63) | `modules/delay/**`, then `modules/reverb/**`, own index rows | Unassigned. After MOD-7 completes (#40 and #47 merge). |
 | **J: batch B dynamics and sound** | MOD-9-quad_vca [#64](https://github.com/kalharbi11/wirescape-test/issues/64) → MOD-9-chaos_lite [#65](https://github.com/kalharbi11/wirescape-test/issues/65) → MOD-9-spectral [#66](https://github.com/kalharbi11/wirescape-test/issues/66) | Those three module folders and own index rows | Unassigned. Same MOD-7 gate; may run alongside I. |
-| **K: MB2 pin and stereo evidence** | [#78](https://github.com/kalharbi11/wirescape-test/issues/78) | `LAB_PIN` and pin integration evidence | Unassigned. Lab MB2 #725 and V2 #758 merged. Check the serial tooling queue before claiming. |
+| **K: MB2 pin and stereo evidence** | [#78](https://github.com/kalharbi11/wirescape-test/issues/78) | `LAB_PIN` and pin integration evidence | Unassigned. **After #85 merges.** Lab MB2 #725 and V2 #758 merged. Check the serial tooling queue before claiming. |
+
+| **P: pin upkeep** (lab 0026 §13.3) | PIN-AUTO → PIN-CLEAN → a "promotable at" column in `modules/README.md` | `tools/**`, `.github/workflows/**`, `LAB_PIN` | After K (#78) merges. Serial tooling queue |
+| **O: overlay upkeep** | delete the LR-1 overlay → UI-GALLERY (`ui --all`, `shot --all`) | `tools/studio/**`, `tools/wstest.py` | After the pin includes lab UI-1 (lab #784). One folder and patch per feature starts with XU1's first feature. Serial tooling queue |
+| **XU1: UI flexibility** (experiment) | accent colour (LR-4) → module presets (LR-3) | `tools/studio/**`, one module's `panel.json` | After O. `owner-decides` on colours and on where presets appear |
+| **XD1: Daisy, build only** (experiment) | VCA linked against pinned libDaisy with an arena `ws2_host` (compile facts: lab `facts/repo/cortex-m7`) → VCO → VCF → VCA firmware image → FINDINGS (linked flash and RAM, libm and soft-float pulled in, what `ws2_host` must provide) | `experiments/daisy/**`, one `x0` workflow | After K. Serial tooling queue for the workflow task |
+| **XP1: patch compiler prototype** (experiment) | three patches without feedback edges to a static schedule → linux-x64 render byte-equal to `wirescape_render`, or the first differing frame and its cause → refusal list and FINDINGS | `experiments/compile/**`, the `x0` workflow | After XD1's workflow task (shared workflow file) |
+
+**Promotion state (lab 0026 §13).** The lab promotes from here in this order: Macro, GUTTR (after the lab
+takes the panel overlay as UI-1), Random, Clock Div/Mult, Rhythm Lanes, the envelopes, LFO, then the
+flag-only batches A and B as one lab PR per batch. Each needs T0 and T1 green at a pin at or after lab
+`027db95`, so **bundle K is the gate for all of them**.
 
 **2026-11-28 release:** Chaos Lite [#73](https://github.com/kalharbi11/wirescape-test/pull/73) merged as `3cbf701`. Spectral [#66](https://github.com/kalharbi11/wirescape-test/issues/66) is the next task in J. Bundle K is a separate pin task. The active MIDI-to-CV render evidence remains in [#77](https://github.com/kalharbi11/wirescape-test/pull/77).
 
@@ -57,7 +68,7 @@ presentation.json, a demo, tests, README and DESIGN. `panel.json` is optional.
 `midi_in/channel_filter` and `notes_to_cv/voices` stay setParam-only (lab 0024 §4.6). Their audits
 document and verify why.
 
-**Next batch, now filed:** MOD-9 is split into exactly two unassigned bundles, I (two tasks) and J (three tasks), at the owner's request. Claim the first task only after MOD-7's remaining PRs #40 and #47 merge; no draft-ahead. Within a bundle, each predecessor merges before the next starts from main. The two bundles share only their index rows; preserve both on conflict. Read-site audits may retain structural parameters as setParam-only with reasons. Default renders stay bit-identical. No tooling/pin or lab edits. Promotions still wait for lab MB2 and owner-requested T2.
+**Next batch, now filed:** MOD-9 is split into exactly two unassigned bundles, I (two tasks) and J (three tasks), at the owner's request. Claim the first task only after MOD-7's remaining PRs #40 and #47 merge; no draft-ahead. Within a bundle, each predecessor merges before the next starts from main. The two bundles share only their index rows; preserve both on conflict. Read-site audits may retain structural parameters as setParam-only with reasons. Default renders stay bit-identical. No tooling/pin or lab edits. Promotions still wait for the MB2 pin (bundle K).
 
 ## Status snapshot (2026-11-27)
 

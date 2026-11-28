@@ -22,8 +22,8 @@ bundle until a session claims it, and each bundle has one open PR at a time.
 - Separate sessions use separate checkouts and build trees.
 
 ## Keep always
-1. **Only module folders, the harness and docs live here.** Paths: `modules/**`, `tools/**`,
-   `.github/workflows/**`, `LAB_PIN` and the top-level docs.
+1. **Only module folders, the harness, experiments and docs live here.** Paths: `modules/**`, `tools/**`,
+   `experiments/**`, `.github/workflows/**`, `LAB_PIN` and the top-level docs.
 2. **Never edit the lab from here.** The only changes made to lab trees are the harness's mechanical
    registration in its scratch copy and the Architect-approved workshop Studio overlay (`tools/studio/`,
    PR #54), when present, in the separate app tree only. The overlay never reaches T0/T1/T2 or the pinned lab checkout.
@@ -33,6 +33,7 @@ bundle until a session claims it, and each bundle has one open PR at a time.
      and any workaround here. Check the ledger first and reuse an existing row.
    - **Nothing is filed in `kalharbi11/wirescape-lab` unless the owner asks** (owner, 2026-11-27). When the
      owner asks, file the issue and set the row to `sent to lab #N`.
+     **Standing yes (owner, 2026-11-28, lab 0026 §8):** the lab Architect files LR-2, LR-3, LR-4 and LR-6.
    - Except for the workshop-only Studio overlay described above, a workaround may only be code inside the module's own folder, listed in `DESIGN.md` "Limitations",
      which links to its `LR-n` rows.
    - A module that needs a lab behaviour change is still blocked (`blocked: LR-n` in `modules/README.md`).
@@ -91,13 +92,38 @@ chat shell does not block this route when the connected tools can read and write
     unless the owner asked, and `DESIGN.md` "Limitations" links to them.
 - **Any agent merges (squash)** when the review names the head SHA and T0 and T1 are green on that head.
   Docs-only PRs need only the review.
-- **T2 is requested by the owner** (0024 §9.3). Ask for it in the PR when the module is done. An agent
-  dispatches `t2.yml` only when the owner asks in the session or the PR.
+- **T2 is requested by the owner** (0024 §9.3). An agent dispatches `t2.yml` only when the owner asks in
+  the session or the PR. **T2 is no longer a promotion precondition** (lab 0026 §13.2): a promotion needs
+  T0 and T1 green at the named commit here, then the lab promotion PR's own CI and demo sweep.
 - **`presentation.json`.** Every new module, and every override that changes ports or parameters,
-  ships `modules/<name>/presentation.json` (0024 §9.1; README "Test tiers"). At promotion it is the one
-  file not byte-copied: its object goes into the lab sidecar.
-- **Promotion to the lab** is lab work (B4), after lab MB2, as a byte copy of a named commit with its T2
-  run (0024 §2.7). After it merges, the next pin bump deletes the folder here.
+  ships `modules/<name>/presentation.json` (0024 §9.1; README "Test tiers"). After lab PRES (#786) it is
+  byte-copied at promotion like `panel.json`; `module.json` is the one file left out (lab M3 r2.4).
+- **Promotion to the lab** is lab work (lab track M), as a byte copy of a named commit that is T0 and T1
+  green at a pin at or after lab MB2 `027db95` (0024 §2.7 as amended by lab 0026 §13.2). After it merges,
+  the next pin bump deletes the folder here. The lab PROMO issue names the commit.
+
+## Experiments (owner, 2026-11-28; lab 0026 §14)
+`experiments/<name>/` holds work that is too experimental for the lab: UI flexibility, a Daisy build, a
+patch compiler, a plugin build. **An experiment answers a question; it does not ship.**
+- **One module source.** It compiles the pinned lab's or this repo's `modules/<name>/` and the pinned lab
+  SDK unmodified. Anything it needs
+  changed there is a `LAB_REQUESTS.md` row, never a private fork.
+- **No design authority.** Lab 0013 (portability) and 0015 (panels) stay the designs. Findings may show a
+  design is wrong; the lab Architect then changes it.
+- **Never in the module tiers.** An experiment has its own path-filtered check (`x0`) and never gates T0
+  or T1. A module PR never waits for an experiment.
+- **Kept rules:** devices off; agents and CI never flash hardware; outside code is pinned by commit and
+  SHA-256 with its licence file; SPDX headers.
+- **Shape:** one bundle, at most three tasks, the same review and merge rules as modules. The last task
+  writes `experiments/<name>/FINDINGS.md`: what worked, numbers, and the `LR-n` rows it needs. The owner
+  then says continue, promote or stop.
+- UI experiments use the workshop Studio overlay (`tools/studio/`), not `experiments/`.
+
+## Who decides (owner, 2026-11-28; lab 0026 §15)
+Technical questions (DSP, stability, tests, CI, pins): the agents and the lab Architect decide. Anything a
+user sees, hears or does (a panel layout, a new control's behaviour, a musical rule, colours, presets):
+label the issue `owner-decides` (ask before building) or `owner-reviews` (build, merge, attach screenshots
+from `wstest shot` or a rendered WAV, and list it for the owner).
 
 ## Lab pin
 `LAB_PIN` is one commit on lab `main`. Bump it in its own PR, which runs T0 and T1 for every module:
