@@ -509,6 +509,48 @@ class StudioOverlayTests(FakeLab):
             self.assertIn(str(path), watched, rel)
         self.assertEqual(sorted(wstest.overlay_files(self.root)), sorted([self.SRC, self.NEW]))
 
+    def test_reviewed_variant_is_selected_by_exact_digest(self):
+        manifest = self.overlay / "BASE.json"
+        base = json.loads(manifest.read_text())
+        pinned = self.lab.dir / self.SRC
+        old = pinned.read_bytes()
+        write(pinned, "// reviewed upstream\n")
+        digest = wstest.sha256(pinned.read_bytes())
+        base["variants"] = {self.SRC: [digest]}
+        write(manifest, json.dumps(base))
+        variant = self.overlay / "variants" / digest / self.SRC
+        write(variant, "// reviewed upstream + overlay\n")
+        self.assertEqual(wstest.load_overlay(self.lab)[self.SRC], variant.read_bytes())
+        self.assertIn("+// reviewed upstream + overlay", wstest.studio_patch(self.lab, self.root))
+        scratch, _ = wstest.prepare_app_tree(self.lab, [self.new_module()])
+        self.assertEqual((scratch / self.SRC).read_bytes(), variant.read_bytes())
+        write(variant, "// edited variant\n")
+        wstest.refresh_app_files(self.lab, scratch, [self.new_module()], self.lab.tracked())
+        self.assertEqual((scratch / self.SRC).read_bytes(), variant.read_bytes())
+        pinned.write_bytes(old)
+        self.assertEqual(wstest.load_overlay(self.lab)[self.SRC], (self.overlay / self.SRC).read_bytes())
+        write(pinned, "// unknown upstream\n")
+        with self.assertRaisesRegex(wstest.Refused, "changed Studio files"):
+            wstest.load_overlay(self.lab)
+        pinned.write_bytes(old)
+        variant.unlink()
+        with self.assertRaisesRegex(wstest.Refused, "variant"):
+            wstest.load_overlay(self.lab)
+
+    def test_variant_manifest_rejects_unlisted_or_invalid_paths(self):
+        manifest = self.overlay / "BASE.json"
+        base = json.loads(manifest.read_text())
+        for variants in ([], {self.SRC: ["../unsafe"]},
+                         {"apps/studio/src/../unsafe": ["a" * 64]},
+                         {self.SRC: [base["files"][self.SRC]]}):
+            write(manifest, json.dumps({**base, "variants": variants}))
+            with self.assertRaisesRegex(wstest.Refused, "variant"):
+                wstest.load_overlay(self.lab)
+        write(manifest, json.dumps(base))
+        write(self.overlay / "variants" / ("a" * 64) / self.SRC, "// unlisted\n")
+        with self.assertRaisesRegex(wstest.Refused, "variant"):
+            wstest.load_overlay(self.lab)
+
     def test_studio_diff_patch_applies_to_the_pin(self):
         patch = wstest.studio_patch(self.lab, self.root)
         write(self.root / "p.patch", patch)

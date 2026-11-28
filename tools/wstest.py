@@ -1458,15 +1458,26 @@ def overlay_files(root: Path = ROOT) -> dict[str, Path]:
     return dict(sorted(found.items()))
 
 
-def load_overlay(lab: Lab) -> dict[str, bytes]:
+def overlay_variant_files(root: Path = ROOT) -> dict[str, Path]:
+    """Reviewed alternative full copies, keyed by base digest and lab-relative path."""
+    base = root / STUDIO_OVERLAY / "variants"
+    return {path.relative_to(base).as_posix(): path
+            for path in sorted(base.rglob("*")) if path.is_file()}
+
+
+def load_overlay(lab: Lab, root: Path | None = None) -> dict[str, bytes]:
     """The workshop Studio files for the app tree. Refuses when a pinned file they replace differs
     from the one BASE.json was taken from (a pin bump that touched it), or the overlay strays."""
-    files = overlay_files(lab.root)
-    manifest = lab.root / STUDIO_OVERLAY / "BASE.json"
-    if not files and not manifest.exists():
+    root = lab.root if root is None else root
+    files = overlay_files(root)
+    variants_on_disk = overlay_variant_files(root)
+    manifest = root / STUDIO_OVERLAY / "BASE.json"
+    if not files and not variants_on_disk and not manifest.exists():
         return {}
     try:
-        base = json.loads(manifest.read_text(encoding="utf-8"))["files"]
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        base = data["files"]
+        variants = data.get("variants", {})
     except (OSError, ValueError, KeyError, TypeError):
         raise Refused(f"{STUDIO_OVERLAY}/BASE.json is missing or unreadable")
     if not isinstance(base, dict):
@@ -1485,17 +1496,36 @@ def load_overlay(lab: Lab) -> dict[str, bytes]:
     missing = sorted(set(base) - set(files))
     if missing:
         raise Refused("BASE.json lists missing overlay files: " + ", ".join(missing))
+    # Each alternative is explicitly reviewed for one exact upstream SHA-256.
+    if not isinstance(variants, dict):
+        raise Refused("BASE.json variants must be a mapping")
+    expected_variants = set()
+    for rel, digests in variants.items():
+        if (rel not in base or not isinstance(digests, list) or not digests
+                or any(not isinstance(d, str) or not re.fullmatch(r"[0-9a-f]{64}", d)
+                       or d == base[rel] for d in digests)
+                or len(set(digests)) != len(digests)):
+            raise Refused(f"BASE.json invalid variant declaration: {rel}")
+        expected_variants.update(f"{d}/{rel}" for d in digests)
+    if expected_variants != set(variants_on_disk):
+        raise Refused("BASE.json variant files differ: " +
+                      ", ".join(sorted(expected_variants ^ set(variants_on_disk))[:8]))
     stale = []
+    selected = dict(files)
     for rel, digest in base.items():
         pinned = lab.dir / rel
         now = sha256(pinned.read_bytes()) if pinned.is_file() else None
-        if now != digest:
+        if now == digest:
+            continue
+        if now in variants.get(rel, []):
+            selected[rel] = variants_on_disk[f"{now}/{rel}"]
+        else:
             stale.append(rel)
     if stale:
         raise Refused(f"the pin ({lab.sha7}) changed Studio files the workshop overlay replaces; rebase "
                       f"{STUDIO_OVERLAY}/ onto them, then run `wstest studio-diff --update-base`:\n  "
                       + "\n  ".join(stale))
-    return {rel: path.read_bytes() for rel, path in files.items()}
+    return {rel: path.read_bytes() for rel, path in selected.items()}
 
 
 def prepare_app_tree(lab: Lab, modules: list[Module]) -> tuple[Path, dict]:
@@ -1593,7 +1623,8 @@ def watched(modules: list[Module]) -> dict[str, int]:
         for name in (PANEL_FILE, "presentation.json"):
             path = m.folder / name
             state[str(path)] = path.stat().st_mtime_ns if path.is_file() else 0
-    for path in [*overlay_files().values(), ROOT / STUDIO_OVERLAY / "BASE.json"]:  # workshop Studio edits
+    for path in [*overlay_files().values(), *overlay_variant_files().values(),
+                 ROOT / STUDIO_OVERLAY / "BASE.json"]:  # workshop Studio edits
         state[str(path)] = path.stat().st_mtime_ns if path.is_file() else 0
     return state
 
@@ -1648,10 +1679,10 @@ def cmd_ui(args) -> int:
 def studio_patch(lab: Lab, root: Path = ROOT) -> str:
     """The overlay as a unified diff against the pinned lab (for review; never applied by the harness)."""
     out = []
-    for rel, path in overlay_files(root).items():
+    for rel, content in load_overlay(lab, root).items():
         pinned = lab.dir / rel
         old = pinned.read_text(encoding="utf-8").splitlines(keepends=True) if pinned.is_file() else []
-        new = path.read_text(encoding="utf-8").splitlines(keepends=True)
+        new = content.decode("utf-8").replace("\r\n", "\n").splitlines(keepends=True)
         out += difflib.unified_diff(old, new, f"a/{rel}" if old else "/dev/null", f"b/{rel}")
     header = ("SPDX-License-Identifier: GPL-3.0-only\n"
               "Workshop Studio overlay against the lab at LAB_PIN, generated by `wstest studio-diff`; "
@@ -1664,6 +1695,13 @@ def cmd_studio_diff(args) -> int:
     lab.fetch(git_deps=args.git_deps)
     folder = ROOT / STUDIO_OVERLAY
     if args.update_base:
+        # A two-base transition must not silently discard a reviewed variant.
+        if overlay_variant_files():
+            raise Refused("reviewed Studio variants exist; consolidate the selected copy and manifest "
+                          "explicitly before studio-diff --update-base")
+        manifest = folder / "BASE.json"
+        if manifest.is_file() and json.loads(manifest.read_text(encoding="utf-8")).get("variants"):
+            raise Refused("reviewed Studio variants declared; consolidate before studio-diff --update-base")
         files = overlay_files()
         base = {rel: (sha256((lab.dir / rel).read_bytes()) if (lab.dir / rel).is_file() else None)
                 for rel in files}

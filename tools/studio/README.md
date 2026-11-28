@@ -30,7 +30,8 @@ A modulated parameter keeps its node whatever the count, and only modulatable ID
 |---|---|
 | `apps/studio/src/…` | full copies of the edited Studio files (and the new `widgets/Slider.ts`), at their lab-relative paths |
 | `BASE.json` | SHA-256 of each pinned file the copies started from (`null` for a new file) |
-| `lab.patch` | the same changes as a unified diff against `LAB_PIN`, generated for review (`git apply --check` is clean on the pin) |
+| `lab.patch` | the same changes as a unified diff against the selected `LAB_PIN`, generated for review (`git apply --check` is clean on the pin) |
+| `variants/<sha256>/apps/studio/src/…` | reviewed alternative full copies for a specific upstream file digest, declared in `BASE.json` under `variants` |
 
 ## Use
 ```sh
@@ -42,3 +43,23 @@ python tools/wstest.py studio-diff           # after editing the copies: regener
 ```
 It is applied to the app tree only, never to the T0/T1/T2 scratch tree. See PROTOTYPING.md for editing it
 and for what a pin bump does.
+
+## MB2 pin transition
+
+The primary copy of `ModuleCard.ts` remains for the current pre-MB2 pin. The
+alternative full copy is based on lab V2 commit
+`1e2ea1d21ced93c95d13b7b49acc47955eba1572` (SHA-256
+`83a1c03f47eef74d085cc0a44aad59b62d9ef146270359b63877b1ca796784d9`).
+The four existing workshop rail hunks were reapplied with unique exact context
+on the new upstream file, preserving upstream OSC quick controls, refresh and
+output labels. The other overlay bases are unchanged. Only a declared exact
+base digest selects a variant; unknown digests, missing or extra variant files
+refuse before app preparation. Both copies are watched for edits, and
+`studio-diff` generates a patch from the selected copy. The checked-in
+`lab.patch` remains against the current pre-MB2 pin until the pin changes.
+`studio-diff --update-base` refuses during this transition: explicitly
+consolidate the selected copy and manifest in a reviewed tooling change before
+refreshing hashes. Never use a manifest refresh as a substitute for rebasing.
+
+No overlay enters a test-tier scratch tree. Real candidate-pin Studio build,
+UI and screenshot verification remains part of the #78 pin acceptance.
