@@ -1,0 +1,97 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "CHAOS-lite default identity",
+  "rate": 48000,
+  "block": 128,
+  "seconds": 2,
+  "seed": 42,
+  "peak_limit": 1,
+  "patch": {
+    "format": "wirescape.native.patch",
+    "version": 2,
+    "settings": {
+      "seed": 42,
+      "feedback_block": 16
+    },
+    "name": "CHAOS-lite default identity",
+    "modules": [
+      {
+        "id": 1,
+        "module": "essentials.chaos_lite",
+        "version": 1,
+        "parameters": {}
+      },
+      {
+        "id": 2,
+        "module": "essentials.mixer",
+        "version": 2,
+        "parameters": {
+          "level_a": 0.5,
+          "level_b": 0.5
+        }
+      },
+      {
+        "id": 3,
+        "module": "essentials.output",
+        "version": 2,
+        "parameters": {}
+      }
+    ],
+    "connections": [
+      {
+        "kind": "signal",
+        "from": {
+          "module": 1,
+          "port": "left"
+        },
+        "to": {
+          "module": 2,
+          "port": "a"
+        }
+      },
+      {
+        "kind": "signal",
+        "from": {
+          "module": 1,
+          "port": "right"
+        },
+        "to": {
+          "module": 2,
+          "port": "b"
+        }
+      },
+      {
+        "kind": "signal",
+        "from": {
+          "module": 2,
+          "port": "audio"
+        },
+        "to": {
+          "module": 3,
+          "port": "audio"
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "module": 3,
+        "port": "audio",
+        "bus_channel": 0
+      },
+      {
+        "module": 3,
+        "port": "audio",
+        "bus_channel": 1
+      }
+    ]
+  },
+  "events": [],
+  "windows": [
+    {
+      "kind": "active",
+      "start": 12000,
+      "end": 84000
+    }
+  ],
+  "frequencies": []
+}
