@@ -39,6 +39,17 @@ Short lettered bundles (owner, 2026-11-27).
 | **J: batch B dynamics and sound** | MOD-9-quad_vca [#64](https://github.com/kalharbi11/wirescape-test/issues/64) → MOD-9-chaos_lite [#65](https://github.com/kalharbi11/wirescape-test/issues/65) → MOD-9-spectral [#66](https://github.com/kalharbi11/wirescape-test/issues/66) | Those three module folders and own index rows | Unassigned. Same MOD-7 gate; may run alongside I. |
 | **K: MB2 pin and stereo evidence** | [#78](https://github.com/kalharbi11/wirescape-test/issues/78) | `LAB_PIN` and pin integration evidence | Unassigned. Lab MB2 #725 and V2 #758 merged. Check the serial tooling queue before claiming. |
 
+| **P: pin upkeep** (lab 0026 §13.3) | PIN-AUTO → PIN-CLEAN | `tools/**`, `.github/workflows/**`, `LAB_PIN` | After K (#78) merges. Serial tooling queue |
+| **O: overlay upkeep** | OVL-SPLIT → UI-GALLERY | `tools/studio/**`, `tools/wstest.py` | After #85 merges. Serial tooling queue |
+| **XU1: UI flexibility** (experiment) | accent colour (LR-4) → module presets (LR-3) | `tools/studio/**`, one module's `panel.json` | After O. `owner-decides` on colours and on where presets appear |
+| **XD1: Daisy, build only** (experiment) | VCA build → VCO → VCF → VCA firmware → FINDINGS | `experiments/daisy/**`, one `x0` workflow | Unassigned; needs no other bundle |
+| **XP1: patch compiler prototype** (experiment) | three patches to a static schedule → byte-equal desktop render → refusal list and FINDINGS | `experiments/compile/**`, the `x0` workflow | After XD1's workflow task (shared workflow file) |
+
+**Promotion state (lab 0026 §13).** The lab promotes from here in this order: Macro, GUTTR (after the lab
+takes the panel overlay as UI-1), Random, Clock Div/Mult, Rhythm Lanes, the envelopes, LFO, then the
+flag-only batches A and B as one lab PR per batch. Each needs T0 and T1 green at a pin at or after lab
+`027db95`, so **bundle K is the gate for all of them**.
+
 **2026-11-28 release:** Chaos Lite [#73](https://github.com/kalharbi11/wirescape-test/pull/73) merged as `3cbf701`. Spectral [#66](https://github.com/kalharbi11/wirescape-test/issues/66) is the next task in J. Bundle K is a separate pin task. The active MIDI-to-CV render evidence remains in [#77](https://github.com/kalharbi11/wirescape-test/pull/77).
 
 **G details.**
